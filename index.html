@@ -13,7 +13,8 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: var(--bg); overflow: hidden; }
 
         /* タブバー */
-        .tab-bar { display: flex; overflow-x: auto; white-space: nowrap; background: var(--card-bg); border-bottom: 1px solid #e5e5ea; position: fixed; top: 0; left: 0; right: 0; z-index: 100; scrollbar-width: none; padding-top: env(safe-area-inset-top); }
+        .tab-bar { display: flex; overflow-x: auto; white-space: nowrap; background: var(--card-bg); border-bottom: 1px solid #e5e5ea; position: fixed; top: 0; left: 0; right: 0; z-index: 100; scrollbar-width: none; padding-top: env(safe-area-inset-top); transition: transform 0.3s ease; }
+        .tab-bar.hidden { transform: translateY(-100%); }
         .tab-bar::-webkit-scrollbar { display: none; }
         .tab { padding: 12px 16px; cursor: pointer; color: var(--text-muted); font-size: 15px; font-weight: bold; border-bottom: 3px solid transparent; transition: color 0.2s; }
         .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
@@ -1741,7 +1742,11 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const container = document.getElementById('swipe-container');
+            const tabBar = document.getElementById('tab-bar');
             const tabs = document.querySelectorAll('.tab');
+
+            let lastScrollTop = 0;
+            let scrollTimeout;
 
             // タブクリック時の横スクロール移動
             tabs.forEach(tab => {
@@ -1749,6 +1754,33 @@
                     const targetId = tab.getAttribute('data-target');
                     const targetEl = document.getElementById(targetId);
                     container.scrollTo({ left: targetEl.offsetLeft, behavior: 'smooth' });
+                });
+            });
+
+            // 縦スクロール時のタブバー表示/非表示制御
+            const swipeItems = document.querySelectorAll('.swipe-item');
+            swipeItems.forEach(item => {
+                item.addEventListener('scroll', () => {
+                    const currentScroll = item.scrollTop;
+
+                    // 下スクロール時にタブバーを隠す、上スクロール時に表示する
+                    if (currentScroll > lastScrollTop && currentScroll > 30) {
+                        // 下スクロール
+                        tabBar.classList.add('hidden');
+                    } else if (currentScroll < lastScrollTop) {
+                        // 上スクロール
+                        tabBar.classList.remove('hidden');
+                    }
+
+                    lastScrollTop = currentScroll;
+
+                    // スクロール完了後にtop位置でタブバーを表示する
+                    clearTimeout(scrollTimeout);
+                    scrollTimeout = setTimeout(() => {
+                        if (currentScroll <= 30) {
+                            tabBar.classList.remove('hidden');
+                        }
+                    }, 150);
                 });
             });
 
