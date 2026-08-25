@@ -14,5 +14,20 @@
         "name": "Revit Peeler",
         "url": "https://www.revitpeeler.com/feeds/posts/default?alt=rss",
         "type": "rss"
+    },
+    {
+        "name": "建設ITブログ",
+        "url": "https://ken-it.world/it/feed",
+        "type": "rss"
+    },
+    {
+        "name": "GIGAZINE",
+        "url": "https://gigazine.net/news/rss_2.0/",
+        "type": "rss"
+    },
+    {
+        "name": "CONTECH",
+        "url": "https://contech.jp/amp/",
+        "type": "rss"
     }
 ]
