@@ -42,10 +42,10 @@ GitHub上で直接編集してコミットするだけで、次回の自動更�
 安定して情報を取得できるため、極力RSSを利用してください。
 ```json
 {
-    "name": "ITmedia",
-    "url": "https://rss.itmedia.co.jp/rss/2.0/itmedia_all.xml",
+    "name": "サイト名",
+    "url": "https://example.com/rss",
     "type": "rss",
-    "category_id": "it"
+    "category_id": "カテゴリID"
 }
 ```
 
@@ -54,10 +54,10 @@ GitHub上で直接編集してコミットするだけで、次回の自動更�
 
 ```json
 {
-    "name": "Archi Future Web",
-    "url": "https://www.archifuture-web.jp/magazine/index2.html",
+    "name": "サイト名",
+    "url": "https://example.com/news",
     "type": "html",
-    "category_id": "construction",
+    "category_id": "カテゴリID",
     "selector": "a"
 }
 ```
