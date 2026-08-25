@@ -26,7 +26,7 @@ def get_time_ago(dt):
         days = int(diff.total_seconds() / 86400)
         return f"{days}日前"
 
-def fetch_rss(site):
+def fetch_rss(site, category_id):
     articles = []
     feed = feedparser.parse(site['url'])
     for entry in feed.entries[:30]: # 各サイト最大30件取得
@@ -44,11 +44,11 @@ def fetch_rss(site):
             "link": entry.link,
             "published_at": dt,
             "time_ago": get_time_ago(dt),
-            "category": site.get('category', '')
+            "category_id": category_id
         })
     return articles
 
-def fetch_html(site):
+def fetch_html(site, category_id):
     articles = []
     try:
         res = requests.get(site['url'], timeout=10)
@@ -73,14 +73,14 @@ def fetch_html(site):
                     "link": link,
                     "published_at": None,
                     "time_ago": "",
-                    "category": site.get('category', '')
+                    "category_id": category_id
                 })
             if len(articles) >= 30: break
     except Exception as e:
         print(f"Error fetching {site['url']}: {e}")
     return articles
 
-def generate_html(all_data, top_articles, categories_data):
+def generate_html(all_data, top_articles, categories_data, categories_map):
     now = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
 
     html = f"""<!DOCTYPE html>
@@ -122,12 +122,13 @@ def generate_html(all_data, top_articles, categories_data):
     <div class="tab-bar" id="tab-bar">
         <div class="tab active" data-target="tab-top">TOP</div>
 """
-    # カテゴリタブの生成
-    for category in categories_data:
-        html += f'<div class="tab" data-target="tab-category-{category}">{category}</div>\n'
+    # カテゴリタブの生成（orderに基づいてソート）
+    sorted_categories = sorted(categories_data.items(), key=lambda x: categories_map[x[0]]['order'])
+    for category_id, _ in sorted_categories:
+        category_name = categories_map[category_id]['name']
+        html += f'<div class="tab" data-target="tab-category-{category_id}">{category_name}</div>\n'
 
     # サイトタブの生成
-    site_idx = 0
     for idx, site in enumerate(all_data):
         html += f'<div class="tab" data-target="tab-site-{idx}">{site["name"]}</div>\n'
 
@@ -150,9 +151,10 @@ def generate_html(all_data, top_articles, categories_data):
 
     html += '<div class="footer">最終更新: ' + now + '</div></div>\n'
 
-    # カテゴリ別タブの生成
-    for category, articles in categories_data.items():
-        html += f'<div class="swipe-item" id="tab-category-{category}">\n'
+    # カテゴリ別タブの生成（orderに基づいてソート）
+    for category_id, articles in sorted_categories:
+        category_name = categories_map[category_id]['name']
+        html += f'<div class="swipe-item" id="tab-category-{category_id}">\n'
         for art in articles:
             html += f"""
             <div class="article">
@@ -222,9 +224,15 @@ def generate_html(all_data, top_articles, categories_data):
     return html
 
 def main():
-    # sites.jsonからサイトリストを読み込む
+    # sites.jsonからカテゴリとサイトリストを読み込む
     with open('sites.json', 'r', encoding='utf-8') as f:
-        sites = json.load(f)
+        config = json.load(f)
+
+    categories = config.get('categories', [])
+    sites = config.get('sites', [])
+
+    # カテゴリマップを作成（category_id -> category info）
+    categories_map = {cat['id']: cat for cat in categories}
 
     all_data = []
     all_articles_flat = []
@@ -232,23 +240,23 @@ def main():
 
     for site in sites:
         print(f"Fetching {site['name']}...")
+        category_id = site.get('category_id', '')
+
         if site['type'] == 'rss':
-            articles = fetch_rss(site)
+            articles = fetch_rss(site, category_id)
         else:
-            articles = fetch_html(site)
+            articles = fetch_html(site, category_id)
 
         all_data.append({"name": site["name"], "articles": articles})
         all_articles_flat.extend(articles)
 
         # カテゴリごとに記事をグループ化
-        category = site.get('category', '')
-        if category:
-            if category not in categories_data:
-                categories_data[category] = []
-            categories_data[category].extend(articles)
+        if category_id:
+            if category_id not in categories_data:
+                categories_data[category_id] = []
+            categories_data[category_id].extend(articles)
 
     # TOPタブ用に全記事を日付順にソート（日時がないHTMLスクレイピング記事は最後に回す）
-    # datetime.min を使うために timezone を付与
     min_time = datetime.min.replace(tzinfo=timezone.utc)
     top_articles = sorted(
         all_articles_flat,
@@ -257,14 +265,14 @@ def main():
     )[:30] # 横断TOPの上位30件
 
     # カテゴリごとの記事をソート
-    for category in categories_data:
-        categories_data[category] = sorted(
-            categories_data[category],
+    for category_id in categories_data:
+        categories_data[category_id] = sorted(
+            categories_data[category_id],
             key=lambda x: x['published_at'] if x['published_at'] else min_time,
             reverse=True
         )
 
-    html_content = generate_html(all_data, top_articles, categories_data)
+    html_content = generate_html(all_data, top_articles, categories_data, categories_map)
 
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html_content)
