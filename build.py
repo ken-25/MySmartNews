@@ -37,13 +37,14 @@ def fetch_rss(site):
                 dt = datetime.fromtimestamp(time.mktime(getattr(entry, key)))
                 dt = dt.replace(tzinfo=timezone.utc).astimezone(JST)
                 break
-        
+
         articles.append({
             "site_name": site['name'],
             "title": entry.title,
             "link": entry.link,
             "published_at": dt,
-            "time_ago": get_time_ago(dt)
+            "time_ago": get_time_ago(dt),
+            "category": site.get('category', '')
         })
     return articles
 
@@ -59,10 +60,10 @@ def fetch_html(site):
             title = a.get_text(strip=True)
             link = a.get('href')
             if not title or not link or len(title) < 5: continue
-            
+
             link = urljoin(site['url'], link)
             if not link.startswith('http'): continue
-            
+
             if link not in seen:
                 seen.add(link)
                 # HTMLスクレイピングの場合は正確な日時が取れないため便宜上Noneとする
@@ -71,16 +72,17 @@ def fetch_html(site):
                     "title": title,
                     "link": link,
                     "published_at": None,
-                    "time_ago": ""
+                    "time_ago": "",
+                    "category": site.get('category', '')
                 })
             if len(articles) >= 30: break
     except Exception as e:
         print(f"Error fetching {site['url']}: {e}")
     return articles
 
-def generate_html(all_data, top_articles):
+def generate_html(all_data, top_articles, categories_data):
     now = datetime.now(JST).strftime("%Y-%m-%d %H:%M:%S")
-    
+
     html = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -94,25 +96,25 @@ def generate_html(all_data, top_articles):
         :root {{ --bg: #f2f2f7; --card-bg: #ffffff; --text: #000000; --text-muted: #8e8e93; --primary: #007aff; }}
         * {{ box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background: var(--bg); overflow: hidden; }}
-        
+
         /* タブバー */
         .tab-bar {{ display: flex; overflow-x: auto; white-space: nowrap; background: var(--card-bg); border-bottom: 1px solid #e5e5ea; position: fixed; top: 0; left: 0; right: 0; z-index: 100; scrollbar-width: none; padding-top: env(safe-area-inset-top); }}
         .tab-bar::-webkit-scrollbar {{ display: none; }}
         .tab {{ padding: 12px 16px; cursor: pointer; color: var(--text-muted); font-size: 15px; font-weight: bold; border-bottom: 3px solid transparent; transition: color 0.2s; }}
         .tab.active {{ color: var(--primary); border-bottom-color: var(--primary); }}
-        
+
         /* スワイプエリア */
         .swipe-container {{ display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; width: 100vw; height: 100vh; scrollbar-width: none; padding-top: calc(45px + env(safe-area-inset-top)); }}
         .swipe-container::-webkit-scrollbar {{ display: none; }}
         .swipe-item {{ width: 100vw; flex-shrink: 0; scroll-snap-align: start; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 15px; padding-bottom: calc(30px + env(safe-area-inset-bottom)); }}
-        
+
         /* 記事デザイン */
         .article {{ background: var(--card-bg); border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }}
         .article a {{ text-decoration: none; color: var(--text); font-size: 15px; display: block; line-height: 1.4; font-weight: 500; margin-bottom: 8px; }}
         .article a:visited {{ color: #5856d6; }}
         .meta {{ display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); }}
         .site-badge {{ background: #e5e5ea; padding: 3px 6px; border-radius: 4px; color: #333; }}
-        
+
         .footer {{ text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 20px; }}
     </style>
 </head>
@@ -120,10 +122,15 @@ def generate_html(all_data, top_articles):
     <div class="tab-bar" id="tab-bar">
         <div class="tab active" data-target="tab-top">TOP</div>
 """
-    # タブメニューの生成
+    # カテゴリタブの生成
+    for category in categories_data:
+        html += f'<div class="tab" data-target="tab-category-{category}">{category}</div>\n'
+
+    # サイトタブの生成
+    site_idx = 0
     for idx, site in enumerate(all_data):
-        html += f'<div class="tab" data-target="tab-{idx}">{site["name"]}</div>\n'
-        
+        html += f'<div class="tab" data-target="tab-site-{idx}">{site["name"]}</div>\n'
+
     html += f"""
     </div>
     <div class="swipe-container" id="swipe-container">
@@ -140,12 +147,26 @@ def generate_html(all_data, top_articles):
                     <span>{art['time_ago']}</span>
                 </div>
             </div>"""
-            
+
     html += '<div class="footer">最終更新: ' + now + '</div></div>\n'
+
+    # カテゴリ別タブの生成
+    for category, articles in categories_data.items():
+        html += f'<div class="swipe-item" id="tab-category-{category}">\n'
+        for art in articles:
+            html += f"""
+            <div class="article">
+                <a href="{art['link']}" target="_blank">{art['title']}</a>
+                <div class="meta">
+                    <span class="site-badge">{art['site_name']}</span>
+                    <span>{art['time_ago']}</span>
+                </div>
+            </div>"""
+        html += '<div class="footer">最終更新: ' + now + '</div></div>\n'
 
     # 各サイト別タブの生成
     for idx, site in enumerate(all_data):
-        html += f'<div class="swipe-item" id="tab-{idx}">\n'
+        html += f'<div class="swipe-item" id="tab-site-{idx}">\n'
         for art in site["articles"]:
             html += f"""
             <div class="article">
@@ -156,15 +177,15 @@ def generate_html(all_data, top_articles):
                 </div>
             </div>"""
         html += '<div class="footer">最終更新: ' + now + '</div></div>\n'
-        
+
     html += """
     </div>
-    
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const container = document.getElementById('swipe-container');
             const tabs = document.querySelectorAll('.tab');
-            
+
             // タブクリック時の横スクロール移動
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
@@ -207,6 +228,7 @@ def main():
 
     all_data = []
     all_articles_flat = []
+    categories_data = {}
 
     for site in sites:
         print(f"Fetching {site['name']}...")
@@ -214,10 +236,17 @@ def main():
             articles = fetch_rss(site)
         else:
             articles = fetch_html(site)
-            
+
         all_data.append({"name": site["name"], "articles": articles})
         all_articles_flat.extend(articles)
-    
+
+        # カテゴリごとに記事をグループ化
+        category = site.get('category', '')
+        if category:
+            if category not in categories_data:
+                categories_data[category] = []
+            categories_data[category].extend(articles)
+
     # TOPタブ用に全記事を日付順にソート（日時がないHTMLスクレイピング記事は最後に回す）
     # datetime.min を使うために timezone を付与
     min_time = datetime.min.replace(tzinfo=timezone.utc)
@@ -226,9 +255,17 @@ def main():
         key=lambda x: x['published_at'] if x['published_at'] else min_time,
         reverse=True
     )[:30] # 横断TOPの上位30件
-    
-    html_content = generate_html(all_data, top_articles)
-    
+
+    # カテゴリごとの記事をソート
+    for category in categories_data:
+        categories_data[category] = sorted(
+            categories_data[category],
+            key=lambda x: x['published_at'] if x['published_at'] else min_time,
+            reverse=True
+        )
+
+    html_content = generate_html(all_data, top_articles, categories_data)
+
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html_content)
     print("index.html generated successfully.")
