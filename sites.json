@@ -29,5 +29,10 @@
         "name": "CONTECH",
         "url": "https://contech.jp/amp/",
         "type": "rss"
+    },
+    {
+        "name": "日経xTECH（建設テック）",
+        "url": "https://xtech.nikkei.com/feature/contech/",
+        "type": "rss"
     }
 ]
