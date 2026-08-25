@@ -1,0 +1,18 @@
+[
+    {
+        "name": "ITmedia",
+        "url": "https://rss.itmedia.co.jp/rss/2.0/itmedia_all.xml",
+        "type": "rss"
+    },
+    {
+        "name": "Archi Future Web",
+        "url": "https://www.archifuture-web.jp/magazine/index2.html",
+        "type": "html",
+        "selector": "a"
+    },
+    {
+        "name": "Revit Peeler",
+        "url": "https://www.revitpeeler.com/feeds/posts/default?alt=rss",
+        "type": "rss"
+    }
+]
