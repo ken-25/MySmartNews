@@ -1,38 +1,51 @@
-[
-    {
-        "name": "ITmedia",
-        "url": "https://rss.itmedia.co.jp/rss/2.0/itmedia_all.xml",
-        "type": "rss"
-    },
-    {
-        "name": "Archi Future Web",
-        "url": "https://www.archifuture-web.jp/magazine/index2.html",
-        "type": "html",
-        "selector": "a"
-    },
-    {
-        "name": "Revit Peeler",
-        "url": "https://www.revitpeeler.com/feeds/posts/default?alt=rss",
-        "type": "rss"
-    },
-    {
-        "name": "建設ITブログ",
-        "url": "https://ken-it.world/it/feed",
-        "type": "rss"
-    },
-    {
-        "name": "GIGAZINE",
-        "url": "https://gigazine.net/news/rss_2.0/",
-        "type": "rss"
-    },
-    {
-        "name": "CONTECH",
-        "url": "https://contech.jp/amp/",
-        "type": "rss"
-    },
-    {
-        "name": "日経xTECH（建設テック）",
-        "url": "https://xtech.nikkei.com/feature/contech/",
-        "type": "rss"
-    }
-]
+{
+    "categories": [
+        {"id": "it", "name": "IT", "order": 1},
+        {"id": "construction", "name": "建設", "order": 2}
+    ],
+    "sites": [
+        {
+            "name": "ITmedia",
+            "url": "https://rss.itmedia.co.jp/rss/2.0/itmedia_all.xml",
+            "type": "rss",
+            "category_id": "it"
+        },
+        {
+            "name": "Archi Future Web",
+            "url": "https://www.archifuture-web.jp/magazine/index2.html",
+            "type": "html",
+            "selector": "a",
+            "category_id": "construction"
+        },
+        {
+            "name": "Revit Peeler",
+            "url": "https://www.revitpeeler.com/feeds/posts/default?alt=rss",
+            "type": "rss",
+            "category_id": "construction"
+        },
+        {
+            "name": "建設ITブログ",
+            "url": "https://ken-it.world/it/feed",
+            "type": "rss",
+            "category_id": "it"
+        },
+        {
+            "name": "GIGAZINE",
+            "url": "https://gigazine.net/news/rss_2.0/",
+            "type": "rss",
+            "category_id": "it"
+        },
+        {
+            "name": "CONTECH",
+            "url": "https://contech.jp/amp/",
+            "type": "rss",
+            "category_id": "construction"
+        },
+        {
+            "name": "日経xTECH（建設テック）",
+            "url": "https://xtech.nikkei.com/feature/contech/",
+            "type": "rss",
+            "category_id": "construction"
+        }
+    ]
+}
