@@ -1,8 +1,11 @@
 """MySmartNews ビルドスクリプト
 
-sites.json の設定に従って記事を収集し、スコアリングした結果を news.json に書き出す。
-表示は index.html + app.js が news.json を読んで行うため、このスクリプトは
-HTML を生成しない（毎時のコミット差分をデータ部分だけに抑えるため）。
+catalog/ のカテゴリパック定義に従って記事を収集し、dist/ に静的な配信物を書き出す。
+
+このスクリプトは**並び順を決めない**。出すのは誰にとっても同じ客観的な信号
+（公開時刻・初回発見時刻・はてなブックマーク数とその増分）だけで、
+「どれを上に出すか」はブラウザ側が各ユーザーの設定で決める。
+こうしておくと、配信物は1つのまま何人が何通りの趣向で使っても成立する。
 
 data/state.json にビルド間で引き継ぐ状態を保存する。DBの代わりだが、
 中身は「7日以内に見た記事のメタ情報」だけの軽量なビルドキャッシュ。
@@ -11,8 +14,10 @@ data/state.json にビルド間で引き継ぐ状態を保存する。DBの代�
 import os
 import re
 import json
-import math
 import time
+import shutil
+import hashlib
+import unicodedata
 import requests
 import feedparser
 from bs4 import BeautifulSoup
@@ -23,38 +28,36 @@ from datetime import datetime, timedelta, timezone
 # タイムゾーン（JST）
 JST = timezone(timedelta(hours=+9), 'JST')
 
+CATALOG_DIR = 'catalog'
 STATE_PATH = os.path.join('data', 'state.json')
-OUTPUT_PATH = 'news.json'
+DIST_DIR = 'dist'
+STATIC_FILES = ['index.html', 'app.js', 'manifest.webmanifest']
 
-USER_AGENT = 'MySmartNewsBot/1.0 (+https://github.com/ken-25/MySmartNews)'
+USER_AGENT = 'MySmartNewsBot/2.0 (+https://github.com/ken-25/MySmartNews)'
 
-# discovery の type: "keyword" が使う検索フィード。{query} にURLエンコード済みの
-# 検索式が入る。別の検索サービスに乗り換えるならここだけ差し替えればよい。
+# type: "query" が使う検索フィード。{query} にURLエンコード済みの検索式が入る。
+# 別の検索サービスに乗り換えるならここだけ差し替えればよい。
 KEYWORD_SEARCH_FEED = ('https://news.google.com/rss/search'
                        '?q={query}&hl=ja&gl=JP&ceid=JP:ja')
 HATENA_COUNT_API = 'https://bookmark.hatenaapis.com/count/entries'
 REQUEST_TIMEOUT = 15
 
-# --- スコアリングのチューニング定数 ---
-HALF_LIFE_HOURS = 8.0      # 鮮度の半減期
-DIVERSITY_DECAY = 0.6      # 同一サイトが1件増えるごとにスコアへ掛かる係数
-POPULARITY_WEIGHT = 0.6    # はてブ累計数の効き
-VELOCITY_WEIGHT = 1.2      # はてブ増加数（急上昇）の効き
-HOT_THRESHOLD = 30         # 🔥 バッジを出す累計ブックマーク数
-RISING_THRESHOLD = 10      # 急上昇と見なす前回ビルドからの増分
 STATE_RETENTION_DAYS = 7   # state.json に記事を保持する日数
-NEW_WINDOW_HOURS = 3       # NEW バッジを出す初回発見からの時間
 STALE_FALLBACK_HOURS = 48  # 取得失敗時に前回結果を使う上限
 HATENA_MAX_URLS = 50       # はてブ件数APIの1リクエストあたり上限件数
 HATENA_MAX_QUERY_BYTES = 3000  # 同、クエリ文字列の長さの上限（414対策）
 MIN_SCRAPED_TITLE_LEN = 8  # スクレイピングで拾うタイトルの最小文字数
-TOP_LIMIT = 40
-CATEGORY_LIMIT = 60
-DISCOVERY_LIMIT = 40
-PER_SOURCE_LIMIT = 30
+PER_SOURCE_LIMIT = 30      # 1ソースから取り込む最大件数
+PACK_LIMIT = 120           # 1パックの配信件数
+
+# リンクがこのホストのものは実記事URLではなくリダイレクトURLなので、
+# 実記事に付いたブックマーク数とは結びつかない。件数を問い合わせない。
+REDIRECT_HOSTS = ('news.google.com',)
 
 TRACKING_PARAM_RE = re.compile(r'^(utm_|fbclid$|gclid$|mc_cid$|mc_eid$|ref$|ref_src$|cmpid$)')
 TRAILING_DATE_RE = re.compile(r'\s*(\d{4})年(\d{1,2})月(\d{1,2})日\s*$')
+# 記号・空白・約物をすべて落とし、英数字と日本語の文字だけ残す。
+CLUSTER_KEEP_RE = re.compile(r'[^0-9a-z\u3040-\u30ff\u3400-\u9fff]+')
 
 
 def now_jst():
@@ -93,6 +96,24 @@ def normalize_url(url):
     path = parts.path.rstrip('/') or '/'
     return urlunparse((parts.scheme, bare_host(parts.netloc), path, '',
                        urlencode(query), ''))
+
+
+def is_redirect_link(url):
+    try:
+        return bare_host(urlparse(url).netloc) in REDIRECT_HOSTS
+    except ValueError:
+        return False
+
+
+def cluster_id(title):
+    """同じ話題を各社が配信したときにまとめるためのキー。
+
+    記号と空白を落としたタイトルのハッシュ。表記ゆれまでは吸収しないが、
+    Googleニュース経由で同一タイトルが重複して届くケースはこれで潰せる。
+    """
+    folded = unicodedata.normalize('NFKC', title).lower()
+    normalized = CLUSTER_KEEP_RE.sub('', folded)
+    return hashlib.sha1(normalized.encode('utf-8')).hexdigest()[:12]
 
 
 def entry_datetime(entry):
@@ -137,25 +158,45 @@ def entry_hatena_count(entry):
     return None
 
 
-def make_article(site_name, title, link, published_at, category_id, kind,
-                 image=None, hatena=None, bookmarkable=True):
+def entry_site_name(entry, fallback):
+    """Googleニュース経由のフィードは実際の媒体名を source に持つ。"""
+    source_meta = getattr(entry, 'source', None)
+    if source_meta is None:
+        return fallback
+    title = source_meta.get('title') if hasattr(source_meta, 'get') else None
+    return title or fallback
+
+
+def strip_source_suffix(title, site_name):
+    """「記事タイトル - 媒体名」の末尾を落とす（Googleニュース対策）。"""
+    suffix = ' - ' + site_name
+    if site_name and title.endswith(suffix) and len(title) > len(suffix):
+        return title[:-len(suffix)].strip()
+    return title
+
+
+def make_article(source, title, link, published_at, image=None, hatena=None,
+                 site_name=None):
+    title = title.strip()
+    resolved = (site_name or source['name']).strip()
     return {
-        "site_name": site_name,
-        "title": title.strip(),
+        "source_id": source['id'],
+        "site_name": resolved,
+        # フィードが媒体名を持っていた場合だけ True。別パックが同じフィードを
+        # 参照したときに、媒体名を上書きしてよいかの判断に使う。
+        "named_by_feed": resolved != source['name'],
+        "title": title,
         "link": link,
         "url_key": normalize_url(link),
+        "cluster": cluster_id(title),
         "published_at": published_at,
-        "category_id": category_id,
-        "kind": kind,          # 'site' or 'discovery'
         "image": image,
         "hatena": hatena,
-        # リンクがリダイレクト用URLの場合、実記事に付いたブックマークとは
-        # 結びつかないので件数を問い合わせない
-        "bookmarkable": bookmarkable,
+        "bookmarkable": not is_redirect_link(link),
     }
 
 
-def fetch_rss(source, category_id, kind, bookmarkable=True):
+def fetch_rss(source):
     """取得できたら記事のリスト、取得自体に失敗したら None を返す。"""
     articles = []
     try:
@@ -172,16 +213,11 @@ def fetch_rss(source, category_id, kind, bookmarkable=True):
         link = getattr(entry, 'link', '')
         if not title or not link:
             continue
-        # Googleニュース検索RSSは実サイト名を source に持つ
-        site_name = source['name']
-        source_meta = getattr(entry, 'source', None)
-        if source_meta is not None:
-            site_name = (source_meta.get('title') if hasattr(source_meta, 'get') else None) or site_name
+        site_name = entry_site_name(entry, source['name'])
         articles.append(make_article(
-            site_name, title, link, entry_datetime(entry), category_id, kind,
-            image=entry_image(entry), hatena=entry_hatena_count(entry),
-            bookmarkable=bookmarkable,
-        ))
+            source, strip_source_suffix(title, site_name), link,
+            entry_datetime(entry), image=entry_image(entry),
+            hatena=entry_hatena_count(entry), site_name=site_name))
     return articles
 
 
@@ -201,7 +237,7 @@ def split_trailing_date(title):
     return title[:match.start()].strip(), published
 
 
-def fetch_html(source, category_id, kind):
+def fetch_html(source):
     """取得できたら記事のリスト、取得自体に失敗したら None を返す。"""
     articles = []
     try:
@@ -245,8 +281,7 @@ def fetch_html(source, category_id, kind):
             continue
         seen.add(key)
         # 日付が拾えなければ初回発見時刻で代用する
-        articles.append(make_article(source['name'], title, link, published_at,
-                                     category_id, kind))
+        articles.append(make_article(source, title, link, published_at))
         if len(articles) >= PER_SOURCE_LIMIT:
             break
 
@@ -255,14 +290,23 @@ def fetch_html(source, category_id, kind):
     return articles
 
 
-def fetch_keyword(source, kind):
-    """キーワード検索フィード。登録していないサイトの記事が入ってくる。
-
-    配信されるリンクは実記事へのリダイレクトURLなので bookmarkable=False とする。
-    """
+def fetch_query(source):
+    """キーワード検索フィード。登録していないサイトの記事が入ってくる。"""
     url = KEYWORD_SEARCH_FEED.format(query=quote_plus(source['query']))
-    return fetch_rss({'name': source['name'], 'url': url}, '', kind,
-                     bookmarkable=False)
+    return fetch_rss(dict(source, url=url))
+
+
+def fetch_source(source):
+    if source['type'] == 'query':
+        return fetch_query(source)
+    if source['type'] == 'html':
+        return fetch_html(source)
+    return fetch_rss(source)
+
+
+def fetch_key(source):
+    """同じフィードを複数パックが参照していても1回しか取りに行かないためのキー。"""
+    return source.get('query') if source['type'] == 'query' else source.get('url')
 
 
 def hatena_chunks(urls):
@@ -313,6 +357,20 @@ def fetch_hatena_counts(urls):
     return counts
 
 
+def load_catalog():
+    """catalog/index.json とパック定義を読み込む。"""
+    with open(os.path.join(CATALOG_DIR, 'index.json'), 'r', encoding='utf-8') as f:
+        index = json.load(f)
+    packs = []
+    for meta in sorted(index['packs'], key=lambda p: p.get('order', 999)):
+        path = os.path.join(CATALOG_DIR, 'packs', f"{meta['id']}.json")
+        with open(path, 'r', encoding='utf-8') as f:
+            body = json.load(f)
+        packs.append(dict(meta, sources=body.get('sources', []),
+                          suggested_interests=body.get('suggested_interests', [])))
+    return packs
+
+
 def load_state():
     try:
         with open(STATE_PATH, 'r', encoding='utf-8') as f:
@@ -338,236 +396,177 @@ def save_state(state, now):
     print(f"state.json: {len(kept)} 件を保持")
 
 
-def recover_from_state(state, site_name, category_id, kind, now):
-    """取得に失敗したサイトは、直近のstateから記事を復元して空タブを防ぐ。"""
+def recover_from_state(state, source, now):
+    """取得に失敗したソースは、直近のstateから記事を復元して空タブを防ぐ。"""
     cutoff = now - timedelta(hours=STALE_FALLBACK_HOURS)
     recovered = []
     for key, meta in state['articles'].items():
-        if meta.get('site_name') != site_name:
+        if meta.get('source_id') != source['id']:
             continue
         first_seen = from_iso(meta.get('first_seen'))
         if not first_seen or first_seen < cutoff:
             continue
         recovered.append(make_article(
-            site_name, meta.get('title', ''), meta.get('link', key),
-            from_iso(meta.get('published_at')), category_id, kind,
-            image=meta.get('image')))
+            source, meta.get('title', ''), meta.get('link', key),
+            from_iso(meta.get('published_at')), image=meta.get('image'),
+            site_name=meta.get('site_name')))
     recovered.sort(key=lambda a: a['published_at'] or datetime.min.replace(tzinfo=JST),
                    reverse=True)
     return recovered[:PER_SOURCE_LIMIT]
 
 
-def match_interests(title, interests):
-    """タイトルに含まれる興味キーワードを返す。"""
-    lowered = title.lower()
-    return [i for i in interests if i['word'].lower() in lowered]
+def collect(packs, state, now):
+    """パックごとに記事を集める。同じフィードは何パックから参照されても1回だけ取る。"""
+    cache = {}
+    per_pack = {}
+    for pack in packs:
+        collected = []
+        for source in pack['sources']:
+            key = fetch_key(source)
+            if key in cache:
+                articles = [dict(a, source_id=source['id'],
+                                 site_name=(a['site_name'] if a['named_by_feed']
+                                            else source['name']))
+                            for a in cache[key]]
+            else:
+                print(f"Fetching {pack['id']}/{source['id']} ({source['name']})...")
+                articles = fetch_source(source)
+                if articles is None:
+                    # 取得できなかったときだけ前回の結果で埋める。取得できたうえで
+                    # 0件だった場合は設定の問題なので、古い記事を蘇らせない。
+                    articles = recover_from_state(state, source, now)
+                    print(f"  !! 取得失敗。stateから{len(articles)}件を復元")
+                elif not articles:
+                    print("  !! 0件（セレクタやパターンの設定を確認）")
+                cache[key] = articles
+            collected.extend(articles)
+        per_pack[pack['id']] = collected
+    return per_pack
 
 
-def compute_score(article, now, interests):
-    age_hours = max((now - article['effective_at']).total_seconds() / 3600.0, 0.0)
-    freshness = 0.5 ** (age_hours / HALF_LIFE_HOURS)
-
-    hits = match_interests(article['title'], interests)
-    article['matched'] = [h['word'] for h in hits]
-    interest_mult = 1.0 + sum(h.get('weight', 1.0) for h in hits)
-
-    hatena = article.get('hatena') or 0
-    delta = article.get('hatena_delta') or 0
-    popularity = (1.0
-                  + POPULARITY_WEIGHT * math.log10(1 + hatena)
-                  + VELOCITY_WEIGHT * math.log10(1 + max(delta, 0)))
-
-    article['score'] = freshness * interest_mult * popularity
-    return article['score']
-
-
-def pick_diverse(articles, limit):
-    """スコア順に選びつつ、同じサイトが続くほどスコアを割り引く（貪欲MMR）。
-
-    純粋な新着順だと更新頻度の高いサイトが一覧を独占してしまうため、
-    ここで多様性を確保する。
-    """
-    pool = sorted(articles, key=lambda a: a['score'], reverse=True)
-    chosen = []
-    used = {}
-    while pool and len(chosen) < limit:
-        best_index, best_value = 0, -1.0
-        for index, article in enumerate(pool):
-            value = article['score'] * (DIVERSITY_DECAY ** used.get(article['site_name'], 0))
-            if value > best_value:
-                best_index, best_value = index, value
-        picked = pool.pop(best_index)
-        used[picked['site_name']] = used.get(picked['site_name'], 0) + 1
-        chosen.append(picked)
-    return chosen
-
-
-def serialize(article, now):
-    age = now - article['effective_at']
-    seconds = age.total_seconds()
-    if seconds < 3600:
-        time_ago = f"{max(int(seconds / 60), 0)}分前"
-    elif seconds < 86400:
-        time_ago = f"{int(seconds / 3600)}時間前"
-    else:
-        time_ago = f"{int(seconds / 86400)}日前"
-
-    hatena = article.get('hatena') or 0
-    delta = article.get('hatena_delta') or 0
+def serialize(article):
+    """配信する記事1件。並び順に関わる主観的な値はここでは持たせない。"""
     return {
         "title": article['title'],
         "link": article['link'],
-        "site_name": article['site_name'],
-        "category_id": article['category_id'],
-        "time_ago": time_ago,
+        "key": article['url_key'],
+        "site": article['site_name'],
+        "source": article['source_id'],
+        "cluster": article['cluster'],
+        "published_at": to_iso(article['effective_at']),
+        "dated": bool(article['published_at']),
+        "first_seen": to_iso(article['first_seen']),
         "image": article.get('image'),
-        "hatena": hatena,
-        "hot": hatena >= HOT_THRESHOLD,
-        "rising": delta >= RISING_THRESHOLD,
-        "is_new": (now - article['first_seen']).total_seconds() < NEW_WINDOW_HOURS * 3600,
-        "matched": article.get('matched', []),
-        "kind": article['kind'],
+        "hatena": article.get('hatena') or 0,
+        "hatena_delta": max(article.get('hatena_delta') or 0, 0),
     }
+
+
+def write_dist(packs, per_pack, now):
+    os.makedirs(os.path.join(DIST_DIR, 'p'), exist_ok=True)
+
+    index_packs = []
+    for pack in packs:
+        articles = per_pack[pack['id']]
+        if not articles:
+            print(f"  !! パック {pack['id']} は0件のためカタログから除外")
+            continue
+        payload = {
+            "id": pack['id'],
+            "updated_at": to_iso(now),
+            "articles": [serialize(a) for a in articles],
+        }
+        path = os.path.join(DIST_DIR, 'p', f"{pack['id']}.json")
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False, separators=(',', ':'))
+        index_packs.append({
+            "id": pack['id'],
+            "name": pack['name'],
+            "emoji": pack.get('emoji', ''),
+            "description": pack.get('description', ''),
+            "default": bool(pack.get('default')),
+            "count": len(articles),
+            "suggested_interests": pack['suggested_interests'],
+            "sources": [{"id": s['id'], "name": s['name']}
+                        for s in pack['sources']],
+        })
+
+    index = {
+        "version": 2,
+        "updated_at": to_iso(now),
+        "updated_label": now.strftime('%Y-%m-%d %H:%M'),
+        "packs": index_packs,
+    }
+    with open(os.path.join(DIST_DIR, 'index.json'), 'w', encoding='utf-8') as f:
+        json.dump(index, f, ensure_ascii=False, separators=(',', ':'))
+
+    for name in STATIC_FILES:
+        if os.path.exists(name):
+            shutil.copy(name, os.path.join(DIST_DIR, name))
+    if os.path.exists('_headers'):
+        shutil.copy('_headers', os.path.join(DIST_DIR, '_headers'))
+    total = sum(len(a) for a in per_pack.values())
+    print(f"{DIST_DIR}/: {len(index_packs)} パック / 延べ {total} 記事")
 
 
 def main():
     now = now_jst()
-    with open('sites.json', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-
-    categories = config.get('categories', [])
-    interests = config.get('interests', [])
-    sites = config.get('sites', [])
-    discovery_sources = config.get('discovery', [])
-
+    packs = load_catalog()
     state = load_state()
-    collected = []
 
-    for site in sites:
-        print(f"Fetching {site['name']}...")
-        category_id = site.get('category_id', '')
-        if site['type'] == 'rss':
-            articles = fetch_rss(site, category_id, 'site')
-        else:
-            articles = fetch_html(site, category_id, 'site')
-        if articles is None:
-            # 取得できなかったときだけ前回の結果で埋める。取得できたうえで
-            # 0件だった場合は設定の問題なので、古い記事を蘇らせない。
-            articles = recover_from_state(state, site['name'], category_id, 'site', now)
-            print(f"  !! {site['name']} は取得失敗。stateから{len(articles)}件を復元")
-        elif not articles:
-            print(f"  !! {site['name']} は0件（セレクタやパターンの設定を確認）")
-        collected.extend(articles)
+    per_pack = collect(packs, state, now)
 
-    for source in discovery_sources:
-        print(f"Discovering {source['name']}...")
-        if source['type'] == 'keyword':
-            articles = fetch_keyword(source, 'discovery')
-        else:
-            articles = fetch_rss(source, '', 'discovery')
-        if not articles:
-            print(f"  !! 発見ソース {source['name']} は0件")
-        collected.extend(articles or [])
-
-    # URL正規化ベースで重複排除（ASCII.jpの総合/テック重複などを吸収）。
-    # 登録サイト由来を優先し、後から来た発見ソースの重複は捨てる。
+    # パック内の重複排除（同じ記事が複数ソースから来る）と、全体のはてブ件数取得。
     unique = {}
-    for article in collected:
-        existing = unique.get(article['url_key'])
-        if existing is None:
-            unique[article['url_key']] = article
-        elif existing['kind'] == 'discovery' and article['kind'] == 'site':
-            unique[article['url_key']] = article
-    articles = list(unique.values())
-    print(f"収集 {len(collected)} 件 → 重複排除後 {len(articles)} 件")
+    for pack_id, articles in per_pack.items():
+        deduped = {}
+        for article in articles:
+            deduped.setdefault(article['url_key'], article)
+        per_pack[pack_id] = list(deduped.values())
+        for article in per_pack[pack_id]:
+            unique.setdefault(article['url_key'], article)
 
-    # はてブ件数（フィードが件数を持っている記事と、リダイレクトURLしか
-    # 分からない記事は問い合わせない）
-    need_counts = [a['link'] for a in articles
+    need_counts = [a['link'] for a in unique.values()
                    if a.get('hatena') is None and a['bookmarkable']]
-    skipped = sum(1 for a in articles if not a['bookmarkable'])
+    skipped = sum(1 for a in unique.values() if not a['bookmarkable'])
     if skipped:
         print(f"  はてブ件数の問い合わせ対象外: {skipped}件（リダイレクトURL）")
     counts = fetch_hatena_counts(need_counts)
 
     stored = state['articles']
-    for article in articles:
-        key = article['url_key']
+    signals = {}
+    for key, article in unique.items():
         meta = stored.get(key, {})
-
-        if article.get('hatena') is None:
-            article['hatena'] = counts.get(article['link'], 0)
+        hatena = article['hatena']
+        if hatena is None:
+            hatena = counts.get(article['link'], 0)
 
         # 公開日時が取れない記事（HTMLスクレイピング）は初回発見時刻で代用する
         first_seen = from_iso(meta.get('first_seen')) or now
-        article['first_seen'] = first_seen
-        article['effective_at'] = article['published_at'] or first_seen
-        article['hatena_delta'] = article['hatena'] - int(meta.get('hatena') or 0)
-
+        signals[key] = {
+            "hatena": hatena,
+            "hatena_delta": hatena - int(meta.get('hatena') or 0),
+            "first_seen": first_seen,
+            "effective_at": article['published_at'] or first_seen,
+        }
         stored[key] = {
             "first_seen": to_iso(first_seen),
             "published_at": to_iso(article['published_at']),
-            "hatena": article['hatena'],
+            "hatena": hatena,
+            "source_id": article['source_id'],
             "site_name": article['site_name'],
             "title": article['title'],
             "link": article['link'],
             "image": article.get('image'),
         }
 
-        compute_score(article, now, interests)
+    for pack_id, articles in per_pack.items():
+        for article in articles:
+            article.update(signals[article['url_key']])
+        articles.sort(key=lambda a: a['effective_at'], reverse=True)
+        per_pack[pack_id] = articles[:PACK_LIMIT]
 
-    site_articles = [a for a in articles if a['kind'] == 'site']
-    discovery_articles = [a for a in articles if a['kind'] == 'discovery']
-
-    tabs = [{
-        "id": "top",
-        "name": "TOP",
-        "articles": [serialize(a, now) for a in pick_diverse(articles, TOP_LIMIT)],
-    }]
-
-    for category in sorted(categories, key=lambda c: c['order']):
-        in_category = [a for a in site_articles if a['category_id'] == category['id']]
-        if not in_category:
-            continue
-        tabs.append({
-            "id": f"category-{category['id']}",
-            "name": category['name'],
-            "articles": [serialize(a, now)
-                         for a in pick_diverse(in_category, CATEGORY_LIMIT)],
-        })
-
-    if discovery_articles:
-        tabs.append({
-            "id": "discovery",
-            "name": "発見",
-            "articles": [serialize(a, now)
-                         for a in pick_diverse(discovery_articles, DISCOVERY_LIMIT)],
-        })
-
-    for site in sites:
-        owned = [a for a in site_articles if a['site_name'] == site['name']]
-        if not owned:
-            # 取得に失敗し続けているサイトは空タブを並べても邪魔なので出さない
-            # （ビルドログには警告が残るので設定ミスには気づける）
-            print(f"  !! {site['name']} のタブは0件のためスキップ")
-            continue
-        owned.sort(key=lambda a: a['effective_at'], reverse=True)
-        tabs.append({
-            "id": "site-" + re.sub(r'[^a-z0-9]+', '-', site['name'].lower()).strip('-'),
-            "name": site['name'],
-            "articles": [serialize(a, now) for a in owned],
-        })
-
-    payload = {
-        "updated_at": to_iso(now),
-        "updated_label": now.strftime("%Y-%m-%d %H:%M"),
-        "interests": [i['word'] for i in interests],
-        "tabs": tabs,
-    }
-    with open(OUTPUT_PATH, 'w', encoding='utf-8') as f:
-        json.dump(payload, f, ensure_ascii=False, indent=1)
-    print(f"{OUTPUT_PATH} generated: {len(tabs)} タブ / {len(articles)} 記事")
-
+    write_dist(packs, per_pack, now)
     save_state(state, now)
 
 

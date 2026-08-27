@@ -1,0 +1,8 @@
+{
+    "id": "sports",
+    "suggested_interests": [],
+    "sources": [
+        {"id": "gnews-sports", "name": "Googleニュース スポーツ", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "nhk-sports", "name": "NHKニュース スポーツ", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat7.xml"}
+    ]
+}

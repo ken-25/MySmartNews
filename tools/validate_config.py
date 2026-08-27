@@ -1,62 +1,98 @@
-"""sites.json の構造を検証する（CI用）。"""
+"""catalog/ の構造を検証する（CI用）。"""
 import json
+import os
 import re
 import sys
 
-VALID_SITE_TYPES = {'rss', 'html'}
-VALID_DISCOVERY_TYPES = {'rss', 'keyword'}
+CATALOG_DIR = 'catalog'
+VALID_TYPES = {'rss', 'html', 'query'}
+
+
+def load(path):
+    with open(path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
+def check_source(pack_id, source, seen_ids):
+    name = source.get('name')
+    for key in ('id', 'name', 'type'):
+        assert source.get(key), f'[{pack_id}] ソース "{name}" に {key} がありません'
+    source_id = source['id']
+    assert re.fullmatch(r'[a-z0-9][a-z0-9-]*', source_id), \
+        f'[{pack_id}] ソースID "{source_id}" は英小文字・数字・ハイフンのみ'
+    assert source_id not in seen_ids, f'[{pack_id}] ソースID "{source_id}" が重複しています'
+    seen_ids.add(source_id)
+
+    assert source['type'] in VALID_TYPES, \
+        f'[{pack_id}] ソース "{name}" の type "{source["type"]}" は無効です'
+    if source['type'] == 'query':
+        assert source.get('query'), f'[{pack_id}] ソース "{name}" に query がありません'
+    else:
+        assert source.get('url', '').startswith('http'), \
+            f'[{pack_id}] ソース "{name}" の url が http(s) で始まっていません'
+    if source['type'] == 'html':
+        assert source.get('selector'), f'[{pack_id}] ソース "{name}" に selector がありません'
+    for key in ('include', 'exclude'):
+        if key in source:
+            try:
+                re.compile(source[key])
+            except re.error as exc:
+                raise AssertionError(
+                    f'[{pack_id}] ソース "{name}" の {key} が正規表現として不正です: {exc}')
 
 
 def main():
-    with open('sites.json', 'r', encoding='utf-8') as f:
-        config = json.load(f)
-    print('✓ sites.json is valid JSON')
+    index = load(os.path.join(CATALOG_DIR, 'index.json'))
+    print('✓ catalog/index.json is valid JSON')
 
-    assert 'categories' in config, 'Missing categories key'
-    assert 'sites' in config, 'Missing sites key'
-    print('✓ Required keys exist')
+    packs = index.get('packs')
+    assert packs, 'catalog/index.json に packs がありません'
 
-    category_ids = set()
-    for category in config['categories']:
+    pack_ids = set()
+    orders = []
+    defaults = 0
+    total_sources = 0
+
+    for meta in packs:
         for key in ('id', 'name', 'order'):
-            assert key in category, f'Category missing {key}'
-        category_ids.add(category['id'])
-    print(f"✓ All {len(config['categories'])} categories are valid")
+            assert key in meta, f'パック "{meta.get("id")}" に {key} がありません'
+        pack_id = meta['id']
+        assert re.fullmatch(r'[a-z0-9][a-z0-9-]*', pack_id), \
+            f'パックID "{pack_id}" は英小文字・数字・ハイフンのみ'
+        assert pack_id not in pack_ids, f'パックID "{pack_id}" が重複しています'
+        pack_ids.add(pack_id)
+        orders.append(meta['order'])
+        if meta.get('default'):
+            defaults += 1
 
-    for site in config['sites']:
-        name = site.get('name')
-        for key in ('name', 'url', 'type'):
-            assert key in site, f'Site "{name}" missing {key}'
-        assert site['type'] in VALID_SITE_TYPES, f'Invalid type for site "{name}"'
-        if site['type'] == 'html':
-            assert 'selector' in site, f'HTML site "{name}" missing selector'
-        for key in ('include', 'exclude'):
-            if key in site:
-                try:
-                    re.compile(site[key])
-                except re.error as exc:
-                    raise AssertionError(f'Site "{name}" has an invalid {key} pattern: {exc}')
-        category_id = site.get('category_id')
-        assert not category_id or category_id in category_ids, \
-            f'Site "{name}" references unknown category_id "{category_id}"'
-    print(f"✓ All {len(config['sites'])} sites are valid")
+        path = os.path.join(CATALOG_DIR, 'packs', f'{pack_id}.json')
+        assert os.path.exists(path), f'パック "{pack_id}" の定義ファイルがありません: {path}'
+        body = load(path)
+        assert body.get('id') == pack_id, f'{path} の id が "{pack_id}" と一致しません'
 
-    for interest in config.get('interests', []):
-        assert interest.get('word'), 'Interest missing word'
-        assert isinstance(interest.get('weight', 1.0), (int, float)), \
-            f"Interest \"{interest.get('word')}\" has a non-numeric weight"
-    print(f"✓ All {len(config.get('interests', []))} interests are valid")
+        sources = body.get('sources') or []
+        assert sources, f'パック "{pack_id}" にソースが1つもありません'
+        seen_ids = set()
+        for source in sources:
+            check_source(pack_id, source, seen_ids)
+        total_sources += len(sources)
 
-    for source in config.get('discovery', []):
-        name = source.get('name')
-        assert name, 'Discovery source missing name'
-        assert source.get('type') in VALID_DISCOVERY_TYPES, \
-            f'Invalid type for discovery source "{name}"'
-        if source['type'] == 'keyword':
-            assert source.get('query'), f'Keyword source "{name}" missing query'
-        else:
-            assert source.get('url'), f'Discovery source "{name}" missing url'
-    print(f"✓ All {len(config.get('discovery', []))} discovery sources are valid")
+        for interest in body.get('suggested_interests', []):
+            assert interest.get('word'), f'[{pack_id}] suggested_interests に word がありません'
+            assert isinstance(interest.get('weight', 1.0), (int, float)), \
+                f'[{pack_id}] "{interest.get("word")}" の weight が数値ではありません'
+
+    assert len(orders) == len(set(orders)), 'パックの order が重複しています'
+    assert defaults, '既定で購読されるパック（"default": true）が1つもありません'
+
+    extra = set()
+    for name in os.listdir(os.path.join(CATALOG_DIR, 'packs')):
+        if name.endswith('.json') and name[:-5] not in pack_ids:
+            extra.add(name)
+    assert not extra, f'index.json に載っていないパック定義があります: {sorted(extra)}'
+
+    print(f'✓ All {len(pack_ids)} packs are valid ({defaults} default)')
+    print(f'✓ All {total_sources} sources are valid')
 
 
 if __name__ == '__main__':

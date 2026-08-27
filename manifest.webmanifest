@@ -1,0 +1,9 @@
+{
+    "name": "MyNews",
+    "short_name": "MyNews",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#000000",
+    "theme_color": "#000000",
+    "description": "カテゴリを選ぶだけで自分好みに並ぶニュースリーダー"
+}
