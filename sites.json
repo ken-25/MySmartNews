@@ -1,8 +1,80 @@
 {
     "categories": [
-        {"id": "it", "name": "IT", "order": 1},
-        {"id": "construction", "name": "建設", "order": 2},
-        {"id": "business", "name": "ビジネス", "order": 3}
+        {
+            "id": "it",
+            "name": "IT",
+            "order": 1
+        },
+        {
+            "id": "construction",
+            "name": "建設",
+            "order": 2
+        },
+        {
+            "id": "business",
+            "name": "ビジネス",
+            "order": 3
+        }
+    ],
+    "interests": [
+        {
+            "word": "BIM",
+            "weight": 2.0
+        },
+        {
+            "word": "Revit",
+            "weight": 2.0
+        },
+        {
+            "word": "建設DX",
+            "weight": 2.0
+        },
+        {
+            "word": "建築",
+            "weight": 1.2
+        },
+        {
+            "word": "施工",
+            "weight": 1.2
+        },
+        {
+            "word": "CAD",
+            "weight": 1.5
+        },
+        {
+            "word": "生成AI",
+            "weight": 1.3
+        },
+        {
+            "word": "AI",
+            "weight": 0.8
+        },
+        {
+            "word": "自動化",
+            "weight": 1.0
+        }
+    ],
+    "discovery": [
+        {
+            "name": "はてブ IT",
+            "url": "https://b.hatena.ne.jp/hotentry/it.rss",
+            "type": "rss"
+        },
+        {
+            "name": "はてブ 総合",
+            "url": "https://b.hatena.ne.jp/hotentry/all.rss",
+            "type": "rss"
+        },
+        {
+            "name": "BIM/建設DX",
+            "query": "BIM OR 建設DX OR Revit",
+            "type": "keyword"
+        },
+        {
+            "name": "建設テック",
+            "query": "建設テック OR 施工管理 アプリ",
+            "type": "keyword"
+        }
     ],
     "sites": [
         {

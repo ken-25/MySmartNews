@@ -43,48 +43,7 @@ jobs:
           flake8 build.py --count --exit-zero --max-line-length=127 --statistics
 
       - name: Validate sites.json
-        run: |
-          python -c "
-          import json
-          with open('sites.json', 'r', encoding='utf-8') as f:
-              config = json.load(f)
-          print('✓ sites.json is valid JSON')
+        run: python tools/validate_config.py
 
-          # Check required keys
-          assert 'categories' in config, 'Missing categories key'
-          assert 'sites' in config, 'Missing sites key'
-          print('✓ Required keys exist')
-
-          # Validate categories
-          for cat in config['categories']:
-              assert 'id' in cat, 'Category missing id'
-              assert 'name' in cat, 'Category missing name'
-              assert 'order' in cat, 'Category missing order'
-          print(f'✓ All {len(config[\"categories\"])} categories are valid')
-
-          # Validate sites
-          for site in config['sites']:
-              assert 'name' in site, 'Site missing name'
-              assert 'url' in site, 'Site missing url'
-              assert 'type' in site, f'Site \"{site.get(\"name\")}\" missing type'
-              assert site['type'] in ['rss', 'html'], f'Invalid type for site \"{site.get(\"name\")}\"'
-              if site['type'] == 'html':
-                  assert 'selector' in site, f'HTML site \"{site.get(\"name\")}\" missing selector'
-          print(f'✓ All {len(config[\"sites\"])} sites are valid')
-          "
-
-      - name: Import test
-        run: |
-          python -c "
-          import json
-          from datetime import datetime, timedelta, timezone
-          from urllib.parse import urljoin
-          import feedparser
-          from bs4 import BeautifulSoup
-          print('✓ All required modules can be imported')
-
-          # Load and check sites.json structure
-          with open('sites.json', 'r', encoding='utf-8') as f:
-              config = json.load(f)
-          print(f'✓ Loaded config with {len(config[\"categories\"])} categories and {len(config[\"sites\"])} sites')
-          "
+      - name: Build with stubbed network
+        run: python tools/build_smoke_test.py
