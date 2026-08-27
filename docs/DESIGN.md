@@ -131,6 +131,13 @@ v1 は毎時 231KB の `news.json` をコミットしていた（年間 8,760 �
 
 ## まだやっていないこと
 
-`docs/DESIGN.md` に書いた方針のうち、未実装のものは GitHub Issue に切り出してある。
-主なものは、パックのティア分割（ロングテールを毎時取りに行かない）、タイトル類似度に
-よる本格的なクラスタリング、カスタムソースのはてブ件数取得、オフライン閲覧。
+未実装の方針は GitHub Issue に切り出してある。
+
+| Issue | 内容 | なぜ後回しにしたか |
+|---|---|---|
+| [#11](https://github.com/ken-25/MySmartNews/issues/11) | ソースのティア分割 | 現状45ソースなら毎時全件でも問題にならない。カタログが育ってから |
+| [#12](https://github.com/ken-25/MySmartNews/issues/12) | 類似度ベースのクラスタリング | 閾値を実データで決める必要があり、まとめすぎると別ニュースが消える |
+| [#13](https://github.com/ken-25/MySmartNews/issues/13) | カスタムソースのはてブ件数 | まずカスタムソース自体が使われるか見てから |
+| [#14](https://github.com/ken-25/MySmartNews/issues/14) | 既読記事の抑制 | 体験としては効くはず。次にやるならこれ |
+| [#15](https://github.com/ken-25/MySmartNews/issues/15) | Issue からのカタログ追加 | カタログを外の人が触りはじめてから |
+| [#16](https://github.com/ken-25/MySmartNews/issues/16) | PWAの仕上げ（アイコン・オフライン） | 画像アセットが要る |
