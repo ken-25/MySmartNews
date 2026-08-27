@@ -7,8 +7,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: update-news
@@ -17,14 +15,29 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      # Cloudflare のシークレットが設定されていれば Cloudflare Pages へ、
-      # なければ GitHub Pages へデプロイする。
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME || 'mysmartnews' }}
+    # configure-pages が Pages の設定を読むので pages 権限が要る。
+    permissions:
+      contents: read
+      pages: write
+    outputs:
+      # 配信先。Cloudflare のシークレットが設定されていれば Cloudflare Pages、
+      # なければ GitHub Pages。deploy ジョブを回すかどうかの判定に使う。
+      target: ${{ steps.target.outputs.name }}
 
     steps:
+      - name: Decide deployment target
+        id: target
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          # secrets コンテキストはジョブレベルの if から参照できないので、
+          # ここで出力に落として後続ジョブの条件にする。
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
+            echo 'name=cloudflare' >> "$GITHUB_OUTPUT"
+          else
+            echo 'name=github-pages' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v7
 
@@ -57,23 +70,41 @@ jobs:
           key: state-${{ github.run_id }}
 
       - name: Deploy to Cloudflare Pages
-        if: env.CLOUDFLARE_API_TOKEN != ''
+        if: steps.target.outputs.name == 'cloudflare'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=${{ env.CLOUDFLARE_PROJECT_NAME }} --branch=main
+          command: >-
+            pages deploy dist
+            --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME || 'mysmartnews' }}
+            --branch=main
 
       - name: Configure GitHub Pages
-        if: env.CLOUDFLARE_API_TOKEN == ''
+        if: steps.target.outputs.name == 'github-pages'
         uses: actions/configure-pages@v5
 
       - name: Upload GitHub Pages artifact
-        if: env.CLOUDFLARE_API_TOKEN == ''
+        if: steps.target.outputs.name == 'github-pages'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
+  # actions/deploy-pages は environment を宣言したジョブでしか動かないため、
+  # GitHub Pages に出すときだけ別ジョブに切り出す。Cloudflare に出す構成で
+  # ここが動くと、使っていない github-pages 環境にデプロイ履歴が残ってしまう。
+  deploy:
+    needs: build
+    if: needs.build.outputs.target == 'github-pages'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
       - name: Deploy to GitHub Pages
-        if: env.CLOUDFLARE_API_TOKEN == ''
+        id: deployment
         uses: actions/deploy-pages@v4
