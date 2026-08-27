@@ -1,7 +1,8 @@
 {
     "categories": [
         {"id": "it", "name": "IT", "order": 1},
-        {"id": "construction", "name": "建設", "order": 2}
+        {"id": "construction", "name": "建設", "order": 2},
+        {"id": "business", "name": "ビジネス", "order": 3}
     ],
     "sites": [
         {
@@ -37,15 +38,31 @@
         },
         {
             "name": "CONTECH",
-            "url": "https://contech.jp/amp/",
-            "type": "rss",
+            "url": "https://contech.jp/",
+            "type": "html",
+            "selector": "a",
             "category_id": "construction"
         },
         {
             "name": "日経xTECH（建設テック）",
             "url": "https://xtech.nikkei.com/feature/contech/",
-            "type": "rss",
+            "type": "html",
+            "selector": "a",
             "category_id": "construction"
+        },
+        {
+            "name": "ASCII.jp（プログラミング）",
+            "url": "https://ascii.jp/programming/",
+            "type": "html",
+            "selector": "a",
+            "category_id": "it"
+        },
+        {
+            "name": "ASCII.jp（ビジネス）",
+            "url": "https://ascii.jp/biz/",
+            "type": "html",
+            "selector": "a",
+            "category_id": "business"
         }
     ]
 }
