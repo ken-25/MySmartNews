@@ -67,8 +67,29 @@ GitHub Actionsを利用して定期的に指定サイトの情報を収集し、
     "selector": ".news-list a"
 }
 ```
-※ ナビゲーションリンクなどのノイズが多く混ざる場合は、`selector` を `article h2 a` のように具体的に指定してください。
+
+ナビゲーションやタグ一覧のリンクが混ざる場合は、まず `selector` を `article h2 a` のように
+具体的に指定してください。それでも絞りきれないときは、リンク先URLの正規表現で絞り込めます。
+
+```json
+{
+    "name": "日経xTECH（建設テック）",
+    "url": "https://xtech.nikkei.com/feature/contech/",
+    "type": "html",
+    "selector": "a",
+    "include": "^https://xtech\\.nikkei\\.com/atcl/",
+    "exclude": "/atcl/nxt/info/"
+}
+```
+
+- `include` … このパターンにマッチするURLだけを残す
+- `exclude` … このパターンにマッチするURLを捨てる
+
+除外はサイトあたりの取得上限（30件）を数える前に行われるので、ページ上部のナビゲーションに
+上限を食い潰されることはありません。
+
 ※ スクレイピングでは公開日時が取れないため、**初回に発見した時刻**を代わりに使います（`data/state.json` に記録されます）。
+　 ただしタイトル末尾が `2026年8月21日` のような日付で終わっている場合は、それを切り離して公開日として使います。
 
 ### 2. 興味キーワード（`interests`）
 

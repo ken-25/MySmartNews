@@ -37,7 +37,8 @@ CONFIG = {
         {"name": "重複サイト", "url": "https://dup.example/rss", "type": "rss",
          "category_id": "it"},
         {"name": "スクレイピング", "url": "https://scrape.example/", "type": "html",
-         "selector": "a", "category_id": "construction"},
+         "selector": "a", "category_id": "construction",
+         "exclude": "/(tag|about)/"},
     ],
 }
 
@@ -72,12 +73,22 @@ class Network:
     def __init__(self):
         self.hatena = {}
         self.scrape_ok = True
+        self.hatena_requests = []
+        self.uri_limit = 4000
+        self.scrape_body = None
 
     def get(self, url, **kwargs):
         import requests
 
         if 'bookmark.hatenaapis' in url:
             urls = [v for k, v in kwargs.get('params', []) if k == 'url']
+            self.hatena_requests.append(list(urls))
+            query_bytes = sum(len(u) + 5 for u in urls)
+            if query_bytes > self.uri_limit:
+                error = requests.exceptions.HTTPError('414 Request-URI Too Large')
+                error.response = FakeResponse('')
+                error.response.status_code = 414
+                raise error
             return FakeResponse('', {u: self.hatena.get(u, 0) for u in urls})
         if 'prolific.example' in url:
             return FakeResponse(rss([
@@ -94,13 +105,24 @@ class Network:
             return FakeResponse(rss([
                 ('はてブの人気記事', 'https://hot.example/1', 90)]))
         if 'news.google.com' in url:
+            # 実物同様に長いリダイレクトURLを返す（414の再現）
             return FakeResponse(rss([
-                ('Googleニュース経由のBIM記事', 'https://gnews.example/1', 150)]))
+                (f'Googleニュース経由のBIM記事{i}',
+                 'https://news.google.com/rss/articles/' + 'C' * 500 + str(i), 150 + i)
+                for i in range(30)]))
         if 'scrape.example' in url:
             if not self.scrape_ok:
                 raise requests.exceptions.ConnectionError('stubbed outage')
+            if self.scrape_body is not None:
+                return FakeResponse(self.scrape_body)
             return FakeResponse(
-                '<html><body><a href="/page/1">日時のないスクレイピング記事</a></body></html>')
+                '<html><body>'
+                '<a href="/tag/bim">BIM</a>'
+                '<a href="/about/">このサイトについて</a>'
+                '<a href="/page/0">短い</a>'
+                '<a href="/page/1">日時のないスクレイピング記事</a>'
+                '<a href="/page/2">日付が末尾に付いた記事2026年8月21日</a>'
+                '</body></html>')
         raise requests.exceptions.ConnectionError('unmapped ' + url)
 
 
@@ -159,10 +181,43 @@ def main():
     check(scraped is not None and scraped['time_ago'],
           f"公開日時のない記事に相対時刻が付いている ({scraped and scraped['time_ago']})")
 
+    check(all('news.google.com' not in u
+              for chunk in network.hatena_requests for u in chunk),
+          'リダイレクトURLをはてブAPIに問い合わせていない')
+    check(network.hatena_requests and all(
+              sum(len(u) + 5 for u in chunk) <= network.uri_limit
+              for chunk in network.hatena_requests),
+          f'はてブAPIのリクエストがURI長の上限内に収まっている '
+          f'({len(network.hatena_requests)}リクエスト)')
+
+    check(find(first, 'このサイトについて') is None,
+          'exclude パターンのリンクが除外されている')
+    check(find(first, '短い') is None, '短すぎるタイトルが除外されている')
+    dated = find(first, '日付が末尾に付いた記事')
+    check(dated is not None and '2026年' not in dated['title'],
+          f"タイトル末尾の日付が切り離されている ({dated and dated['title']})")
+
     check(any(t['name'] == '発見' for t in first['tabs']), '発見タブが生成されている')
     discovery = [t for t in first['tabs'] if t['name'] == '発見'][0]['articles']
     check(any('Googleニュース経由' in a['title'] for a in discovery),
           '登録外のキーワード検索記事が発見タブに入っている')
+
+    # --- URIの上限が想定より厳しい場合に、分割して取り直せることを確認 ---
+    network.hatena_requests = []
+    network.uri_limit = 200
+    network.hatena = {'https://prolific.example/2': 55}
+    build.main()
+    with open('news.json', encoding='utf-8') as f:
+        split_run = json.load(f)
+    rejected = [c for c in network.hatena_requests
+                if sum(len(u) + 5 for u in c) > network.uri_limit]
+    check(len(network.hatena_requests) > len(rejected) > 0,
+          f'414を受けたリクエストを分割して取り直している '
+          f'(全{len(network.hatena_requests)}回 / うち414が{len(rejected)}回)')
+    recovered = find(split_run, '多産サイトの記事2')
+    check(recovered is not None and recovered['hatena'] == 55,
+          f"分割後にはてブ件数を取得できている ({recovered and recovered['hatena']})")
+    network.uri_limit = 4000
 
     # --- 2周目: はてブが急増した記事が浮上することを確認 ---
     network.hatena = {'https://prolific.example/1': 120}
@@ -183,6 +238,15 @@ def main():
         third = json.load(f)
     check(find(third, '日時のないスクレイピング記事') is not None,
           '取得に失敗したサイトの記事が state から復元されている')
+
+    # --- 4周目: 取得はできたが全件フィルタされた場合は復元しない ---
+    network.scrape_ok = True
+    network.scrape_body = '<html><body><a href="/tag/bim">除外されるリンク</a></body></html>'
+    build.main()
+    with open('news.json', encoding='utf-8') as f:
+        fourth = json.load(f)
+    check(find(fourth, '日時のないスクレイピング記事') is None,
+          '取得できたうえで0件のときは古い記事を復元しない')
 
     with open(os.path.join('data', 'state.json'), encoding='utf-8') as f:
         state = json.load(f)

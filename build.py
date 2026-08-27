@@ -16,7 +16,8 @@ import time
 import requests
 import feedparser
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse, urlencode, parse_qsl, urlunparse
+from urllib.parse import (urljoin, urlparse, urlencode, parse_qsl,
+                          quote_plus, urlunparse)
 from datetime import datetime, timedelta, timezone
 
 # タイムゾーン（JST）
@@ -26,6 +27,12 @@ STATE_PATH = os.path.join('data', 'state.json')
 OUTPUT_PATH = 'news.json'
 
 USER_AGENT = 'MySmartNewsBot/1.0 (+https://github.com/ken-25/MySmartNews)'
+
+# discovery の type: "keyword" が使う検索フィード。{query} にURLエンコード済みの
+# 検索式が入る。別の検索サービスに乗り換えるならここだけ差し替えればよい。
+KEYWORD_SEARCH_FEED = ('https://news.google.com/rss/search'
+                       '?q={query}&hl=ja&gl=JP&ceid=JP:ja')
+HATENA_COUNT_API = 'https://bookmark.hatenaapis.com/count/entries'
 REQUEST_TIMEOUT = 15
 
 # --- スコアリングのチューニング定数 ---
@@ -38,12 +45,16 @@ RISING_THRESHOLD = 10      # 急上昇と見なす前回ビルドからの増分
 STATE_RETENTION_DAYS = 7   # state.json に記事を保持する日数
 NEW_WINDOW_HOURS = 3       # NEW バッジを出す初回発見からの時間
 STALE_FALLBACK_HOURS = 48  # 取得失敗時に前回結果を使う上限
+HATENA_MAX_URLS = 50       # はてブ件数APIの1リクエストあたり上限件数
+HATENA_MAX_QUERY_BYTES = 3000  # 同、クエリ文字列の長さの上限（414対策）
+MIN_SCRAPED_TITLE_LEN = 8  # スクレイピングで拾うタイトルの最小文字数
 TOP_LIMIT = 40
 CATEGORY_LIMIT = 60
 DISCOVERY_LIMIT = 40
 PER_SOURCE_LIMIT = 30
 
 TRACKING_PARAM_RE = re.compile(r'^(utm_|fbclid$|gclid$|mc_cid$|mc_eid$|ref$|ref_src$|cmpid$)')
+TRAILING_DATE_RE = re.compile(r'\s*(\d{4})年(\d{1,2})月(\d{1,2})日\s*$')
 
 
 def now_jst():
@@ -63,6 +74,12 @@ def from_iso(text):
         return None
 
 
+def bare_host(netloc):
+    """ホスト名を小文字にし、先頭の www. だけを取り除く。"""
+    host = netloc.lower()
+    return host[4:] if host.startswith('www.') else host
+
+
 def normalize_url(url):
     """トラッキングパラメータとフラグメントを落として重複判定に使うURLを作る。"""
     if not url:
@@ -74,10 +91,8 @@ def normalize_url(url):
     query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
              if not TRACKING_PARAM_RE.match(k)]
     path = parts.path.rstrip('/') or '/'
-    netloc = parts.netloc.lower()
-    if netloc.startswith('www.'):
-        netloc = netloc[4:]
-    return urlunparse((parts.scheme, netloc, path, '', urlencode(query), ''))
+    return urlunparse((parts.scheme, bare_host(parts.netloc), path, '',
+                       urlencode(query), ''))
 
 
 def entry_datetime(entry):
@@ -123,7 +138,7 @@ def entry_hatena_count(entry):
 
 
 def make_article(site_name, title, link, published_at, category_id, kind,
-                 image=None, hatena=None):
+                 image=None, hatena=None, bookmarkable=True):
     return {
         "site_name": site_name,
         "title": title.strip(),
@@ -134,10 +149,14 @@ def make_article(site_name, title, link, published_at, category_id, kind,
         "kind": kind,          # 'site' or 'discovery'
         "image": image,
         "hatena": hatena,
+        # リンクがリダイレクト用URLの場合、実記事に付いたブックマークとは
+        # 結びつかないので件数を問い合わせない
+        "bookmarkable": bookmarkable,
     }
 
 
-def fetch_rss(source, category_id, kind):
+def fetch_rss(source, category_id, kind, bookmarkable=True):
+    """取得できたら記事のリスト、取得自体に失敗したら None を返す。"""
     articles = []
     try:
         res = requests.get(source['url'], timeout=REQUEST_TIMEOUT,
@@ -146,7 +165,7 @@ def fetch_rss(source, category_id, kind):
         feed = feedparser.parse(res.content)
     except Exception as exc:
         print(f"  !! RSS取得に失敗: {source['name']} ({exc})")
-        return articles
+        return None
 
     for entry in feed.entries[:PER_SOURCE_LIMIT]:
         title = getattr(entry, 'title', '')
@@ -161,11 +180,29 @@ def fetch_rss(source, category_id, kind):
         articles.append(make_article(
             site_name, title, link, entry_datetime(entry), category_id, kind,
             image=entry_image(entry), hatena=entry_hatena_count(entry),
+            bookmarkable=bookmarkable,
         ))
     return articles
 
 
+def split_trailing_date(title):
+    """「記事タイトル2026年8月21日」のように末尾に付く日付を切り離す。
+
+    カード全体を get_text したときに日付まで拾ってしまうサイト向け。
+    """
+    match = TRAILING_DATE_RE.search(title)
+    if not match:
+        return title, None
+    year, month, day = (int(g) for g in match.groups())
+    try:
+        published = datetime(year, month, day, tzinfo=JST)
+    except ValueError:
+        return title, None
+    return title[:match.start()].strip(), published
+
+
 def fetch_html(source, category_id, kind):
+    """取得できたら記事のリスト、取得自体に失敗したら None を返す。"""
     articles = []
     try:
         res = requests.get(source['url'], timeout=REQUEST_TIMEOUT,
@@ -175,52 +212,104 @@ def fetch_html(source, category_id, kind):
         soup = BeautifulSoup(res.text, 'html.parser')
     except Exception as exc:
         print(f"  !! HTML取得に失敗: {source['name']} ({exc})")
-        return articles
+        return None
+
+    # ナビゲーションやタグ一覧のリンクを落とすためのURLパターン（任意）
+    include = re.compile(source['include']) if source.get('include') else None
+    exclude = re.compile(source['exclude']) if source.get('exclude') else None
 
     seen = set()
+    skipped = 0
     for anchor in soup.select(source['selector']):
         title = anchor.get_text(strip=True)
         href = anchor.get('href')
-        if not title or not href or len(title) < 5:
+        if not title or not href:
             continue
         link = urljoin(source['url'], href)
         if not link.startswith('http'):
             continue
+        if include and not include.search(link):
+            skipped += 1
+            continue
+        if exclude and exclude.search(link):
+            skipped += 1
+            continue
+
+        title, published_at = split_trailing_date(title)
+        if len(title) < MIN_SCRAPED_TITLE_LEN:
+            skipped += 1
+            continue
+
         key = normalize_url(link)
         if key in seen:
             continue
         seen.add(key)
-        # スクレイピングでは公開日時が取れないので、初回発見時刻で代用する
-        articles.append(make_article(source['name'], title, link, None,
+        # 日付が拾えなければ初回発見時刻で代用する
+        articles.append(make_article(source['name'], title, link, published_at,
                                      category_id, kind))
         if len(articles) >= PER_SOURCE_LIMIT:
             break
+
+    if skipped:
+        print(f"  {source['name']}: {skipped}件をパターン/文字数で除外")
     return articles
 
 
 def fetch_keyword(source, kind):
-    """Googleニュースのキーワード検索RSS。登録外のサイトから記事が入ってくる。"""
-    url = 'https://news.google.com/rss/search?' + urlencode({
-        'q': source['query'], 'hl': 'ja', 'gl': 'JP', 'ceid': 'JP:ja',
-    })
-    return fetch_rss({'name': source['name'], 'url': url}, '', kind)
+    """キーワード検索フィード。登録していないサイトの記事が入ってくる。
+
+    配信されるリンクは実記事へのリダイレクトURLなので bookmarkable=False とする。
+    """
+    url = KEYWORD_SEARCH_FEED.format(query=quote_plus(source['query']))
+    return fetch_rss({'name': source['name'], 'url': url}, '', kind,
+                     bookmarkable=False)
+
+
+def hatena_chunks(urls):
+    """件数と、URLをクエリに詰めたときのバイト長の両方で分割する。
+
+    Googleニュース経由のリンクは 500 文字を超えることがあり、件数だけで
+    50件ずつに切ると URI が長すぎて 414 になる。
+    """
+    chunk, size = [], 0
+    for url in urls:
+        cost = len(urlencode([('url', url)])) + 1
+        if chunk and (len(chunk) >= HATENA_MAX_URLS
+                      or size + cost > HATENA_MAX_QUERY_BYTES):
+            yield chunk
+            chunk, size = [], 0
+        chunk.append(url)
+        size += cost
+    if chunk:
+        yield chunk
+
+
+def request_hatena_chunk(chunk, counts, depth=0):
+    try:
+        res = requests.get(
+            HATENA_COUNT_API,
+            params=[('url', u) for u in chunk],
+            timeout=REQUEST_TIMEOUT, headers={'User-Agent': USER_AGENT})
+        res.raise_for_status()
+        counts.update({k: int(v) for k, v in res.json().items()})
+        return
+    except Exception as exc:
+        status = getattr(getattr(exc, 'response', None), 'status_code', None)
+        # URIが長すぎる場合だけは分割して取り直す（他のエラーで再試行はしない）
+        if status in (413, 414) and len(chunk) > 1 and depth < 5:
+            middle = len(chunk) // 2
+            request_hatena_chunk(chunk[:middle], counts, depth + 1)
+            request_hatena_chunk(chunk[middle:], counts, depth + 1)
+            return
+        print(f"  !! はてブ件数の取得に失敗（{len(chunk)}件をスコア0扱いで続行）: {exc}")
 
 
 def fetch_hatena_counts(urls):
-    """はてなブックマーク件数API（無料・認証不要）。最大50件ずつ問い合わせる。"""
+    """はてなブックマーク件数API（無料・認証不要）をまとめて叩く。"""
     counts = {}
     targets = [u for u in urls if u and u.startswith('http')]
-    for i in range(0, len(targets), 50):
-        chunk = targets[i:i + 50]
-        try:
-            res = requests.get(
-                'https://bookmark.hatenaapis.com/count/entries',
-                params=[('url', u) for u in chunk],
-                timeout=REQUEST_TIMEOUT, headers={'User-Agent': USER_AGENT})
-            res.raise_for_status()
-            counts.update({k: int(v) for k, v in res.json().items()})
-        except Exception as exc:
-            print(f"  !! はてブ件数の取得に失敗（スコア0扱いで続行）: {exc}")
+    for chunk in hatena_chunks(targets):
+        request_hatena_chunk(chunk, counts)
     return counts
 
 
@@ -361,9 +450,13 @@ def main():
             articles = fetch_rss(site, category_id, 'site')
         else:
             articles = fetch_html(site, category_id, 'site')
-        if not articles:
+        if articles is None:
+            # 取得できなかったときだけ前回の結果で埋める。取得できたうえで
+            # 0件だった場合は設定の問題なので、古い記事を蘇らせない。
             articles = recover_from_state(state, site['name'], category_id, 'site', now)
-            print(f"  !! {site['name']} は0件。stateから{len(articles)}件を復元")
+            print(f"  !! {site['name']} は取得失敗。stateから{len(articles)}件を復元")
+        elif not articles:
+            print(f"  !! {site['name']} は0件（セレクタやパターンの設定を確認）")
         collected.extend(articles)
 
     for source in discovery_sources:
@@ -374,7 +467,7 @@ def main():
             articles = fetch_rss(source, '', 'discovery')
         if not articles:
             print(f"  !! 発見ソース {source['name']} は0件")
-        collected.extend(articles)
+        collected.extend(articles or [])
 
     # URL正規化ベースで重複排除（ASCII.jpの総合/テック重複などを吸収）。
     # 登録サイト由来を優先し、後から来た発見ソースの重複は捨てる。
@@ -388,8 +481,13 @@ def main():
     articles = list(unique.values())
     print(f"収集 {len(collected)} 件 → 重複排除後 {len(articles)} 件")
 
-    # はてブ件数（フィードが件数を持っていない記事だけ問い合わせる）
-    need_counts = [a['link'] for a in articles if a.get('hatena') is None]
+    # はてブ件数（フィードが件数を持っている記事と、リダイレクトURLしか
+    # 分からない記事は問い合わせない）
+    need_counts = [a['link'] for a in articles
+                   if a.get('hatena') is None and a['bookmarkable']]
+    skipped = sum(1 for a in articles if not a['bookmarkable'])
+    if skipped:
+        print(f"  はてブ件数の問い合わせ対象外: {skipped}件（リダイレクトURL）")
     counts = fetch_hatena_counts(need_counts)
 
     stored = state['articles']
