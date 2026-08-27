@@ -16,7 +16,8 @@ import time
 import requests
 import feedparser
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse, urlencode, parse_qsl, urlunparse
+from urllib.parse import (urljoin, urlparse, urlencode, parse_qsl,
+                          quote_plus, urlunparse)
 from datetime import datetime, timedelta, timezone
 
 # タイムゾーン（JST）
@@ -26,6 +27,12 @@ STATE_PATH = os.path.join('data', 'state.json')
 OUTPUT_PATH = 'news.json'
 
 USER_AGENT = 'MySmartNewsBot/1.0 (+https://github.com/ken-25/MySmartNews)'
+
+# discovery の type: "keyword" が使う検索フィード。{query} にURLエンコード済みの
+# 検索式が入る。別の検索サービスに乗り換えるならここだけ差し替えればよい。
+KEYWORD_SEARCH_FEED = ('https://news.google.com/rss/search'
+                       '?q={query}&hl=ja&gl=JP&ceid=JP:ja')
+HATENA_COUNT_API = 'https://bookmark.hatenaapis.com/count/entries'
 REQUEST_TIMEOUT = 15
 
 # --- スコアリングのチューニング定数 ---
@@ -45,9 +52,6 @@ TOP_LIMIT = 40
 CATEGORY_LIMIT = 60
 DISCOVERY_LIMIT = 40
 PER_SOURCE_LIMIT = 30
-
-# ブックマークは実記事のURLに付くため、リダイレクト用URLは問い合わせない
-NON_BOOKMARKABLE_HOSTS = frozenset(['news.google.com'])
 
 TRACKING_PARAM_RE = re.compile(r'^(utm_|fbclid$|gclid$|mc_cid$|mc_eid$|ref$|ref_src$|cmpid$)')
 TRAILING_DATE_RE = re.compile(r'\s*(\d{4})年(\d{1,2})月(\d{1,2})日\s*$')
@@ -134,7 +138,7 @@ def entry_hatena_count(entry):
 
 
 def make_article(site_name, title, link, published_at, category_id, kind,
-                 image=None, hatena=None):
+                 image=None, hatena=None, bookmarkable=True):
     return {
         "site_name": site_name,
         "title": title.strip(),
@@ -145,10 +149,13 @@ def make_article(site_name, title, link, published_at, category_id, kind,
         "kind": kind,          # 'site' or 'discovery'
         "image": image,
         "hatena": hatena,
+        # リンクがリダイレクト用URLの場合、実記事に付いたブックマークとは
+        # 結びつかないので件数を問い合わせない
+        "bookmarkable": bookmarkable,
     }
 
 
-def fetch_rss(source, category_id, kind):
+def fetch_rss(source, category_id, kind, bookmarkable=True):
     """取得できたら記事のリスト、取得自体に失敗したら None を返す。"""
     articles = []
     try:
@@ -173,6 +180,7 @@ def fetch_rss(source, category_id, kind):
         articles.append(make_article(
             site_name, title, link, entry_datetime(entry), category_id, kind,
             image=entry_image(entry), hatena=entry_hatena_count(entry),
+            bookmarkable=bookmarkable,
         ))
     return articles
 
@@ -248,11 +256,13 @@ def fetch_html(source, category_id, kind):
 
 
 def fetch_keyword(source, kind):
-    """Googleニュースのキーワード検索RSS。登録外のサイトから記事が入ってくる。"""
-    url = 'https://news.google.com/rss/search?' + urlencode({
-        'q': source['query'], 'hl': 'ja', 'gl': 'JP', 'ceid': 'JP:ja',
-    })
-    return fetch_rss({'name': source['name'], 'url': url}, '', kind)
+    """キーワード検索フィード。登録していないサイトの記事が入ってくる。
+
+    配信されるリンクは実記事へのリダイレクトURLなので bookmarkable=False とする。
+    """
+    url = KEYWORD_SEARCH_FEED.format(query=quote_plus(source['query']))
+    return fetch_rss({'name': source['name'], 'url': url}, '', kind,
+                     bookmarkable=False)
 
 
 def hatena_chunks(urls):
@@ -277,7 +287,7 @@ def hatena_chunks(urls):
 def request_hatena_chunk(chunk, counts, depth=0):
     try:
         res = requests.get(
-            'https://bookmark.hatenaapis.com/count/entries',
+            HATENA_COUNT_API,
             params=[('url', u) for u in chunk],
             timeout=REQUEST_TIMEOUT, headers={'User-Agent': USER_AGENT})
         res.raise_for_status()
@@ -297,18 +307,7 @@ def request_hatena_chunk(chunk, counts, depth=0):
 def fetch_hatena_counts(urls):
     """はてなブックマーク件数API（無料・認証不要）をまとめて叩く。"""
     counts = {}
-    targets = []
-    for url in urls:
-        if not url or not url.startswith('http'):
-            continue
-        # リダイレクト用URLにブックマークは付かないので問い合わせるだけ無駄
-        if bare_host(urlparse(url).netloc) in NON_BOOKMARKABLE_HOSTS:
-            continue
-        targets.append(url)
-
-    skipped = len(urls) - len(targets)
-    if skipped:
-        print(f"  はてブ件数の問い合わせ対象外: {skipped}件（リダイレクトURLなど）")
+    targets = [u for u in urls if u and u.startswith('http')]
     for chunk in hatena_chunks(targets):
         request_hatena_chunk(chunk, counts)
     return counts
@@ -482,8 +481,13 @@ def main():
     articles = list(unique.values())
     print(f"収集 {len(collected)} 件 → 重複排除後 {len(articles)} 件")
 
-    # はてブ件数（フィードが件数を持っていない記事だけ問い合わせる）
-    need_counts = [a['link'] for a in articles if a.get('hatena') is None]
+    # はてブ件数（フィードが件数を持っている記事と、リダイレクトURLしか
+    # 分からない記事は問い合わせない）
+    need_counts = [a['link'] for a in articles
+                   if a.get('hatena') is None and a['bookmarkable']]
+    skipped = sum(1 for a in articles if not a['bookmarkable'])
+    if skipped:
+        print(f"  はてブ件数の問い合わせ対象外: {skipped}件（リダイレクトURL）")
     counts = fetch_hatena_counts(need_counts)
 
     stored = state['articles']
