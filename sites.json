@@ -51,17 +51,21 @@
             "category_id": "construction"
         },
         {
-            "name": "ASCII.jp（プログラミング）",
-            "url": "https://ascii.jp/programming/",
-            "type": "html",
-            "selector": "a",
+            "name": "ASCII.jp（総合）",
+            "url": "https://ascii.jp/rss.xml",
+            "type": "rss",
+            "category_id": "it"
+        },
+        {
+            "name": "ASCII.jp（テック）",
+            "url": "https://ascii.jp/tech/rss.xml",
+            "type": "rss",
             "category_id": "it"
         },
         {
             "name": "ASCII.jp（ビジネス）",
-            "url": "https://ascii.jp/biz/",
-            "type": "html",
-            "selector": "a",
+            "url": "https://ascii.jp/biz/rss.xml",
+            "type": "rss",
             "category_id": "business"
         }
     ]
