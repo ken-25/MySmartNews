@@ -730,15 +730,13 @@
     }
 
     function renderCustomSection(parent) {
+        // ブラウザから外部フィードを直接読めないので、この機能は取得プロキシ
+        // （Cloudflare Pages Functions）のある配信先でしか成立しない。無い環境では
+        // 使えない欄を見せても仕方がないので、節ごと出さない。判定前も同じ扱い。
+        if (apiAvailable !== true) { return; }
+
         parent.appendChild(sectionTitle('自分で追加したソース'));
         var box = group();
-
-        if (apiAvailable === false) {
-            box.appendChild(row('この配信元では利用できません',
-                'RSSの取得にはブラウザから直接読めない制約があるため、Cloudflare Pages 版でのみ有効です。'));
-            parent.appendChild(box);
-            return;
-        }
 
         settings.custom.forEach(function (source) {
             var node = row(source.name,
