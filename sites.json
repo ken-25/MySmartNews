@@ -113,14 +113,17 @@
             "url": "https://contech.jp/",
             "type": "html",
             "selector": "a",
-            "category_id": "construction"
+            "category_id": "construction",
+            "exclude": "/(tag|category|author|about|contact|privacy-policy)/"
         },
         {
             "name": "日経xTECH（建設テック）",
             "url": "https://xtech.nikkei.com/feature/contech/",
             "type": "html",
             "selector": "a",
-            "category_id": "construction"
+            "category_id": "construction",
+            "include": "^https://xtech\\.nikkei\\.com/atcl/",
+            "exclude": "/atcl/nxt/info/"
         },
         {
             "name": "ASCII.jp（総合）",

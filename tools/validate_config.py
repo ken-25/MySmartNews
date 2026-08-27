@@ -1,5 +1,6 @@
 """sites.json の構造を検証する（CI用）。"""
 import json
+import re
 import sys
 
 VALID_SITE_TYPES = {'rss', 'html'}
@@ -29,6 +30,12 @@ def main():
         assert site['type'] in VALID_SITE_TYPES, f'Invalid type for site "{name}"'
         if site['type'] == 'html':
             assert 'selector' in site, f'HTML site "{name}" missing selector'
+        for key in ('include', 'exclude'):
+            if key in site:
+                try:
+                    re.compile(site[key])
+                except re.error as exc:
+                    raise AssertionError(f'Site "{name}" has an invalid {key} pattern: {exc}')
         category_id = site.get('category_id')
         assert not category_id or category_id in category_ids, \
             f'Site "{name}" references unknown category_id "{category_id}"'
