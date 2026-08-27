@@ -1,0 +1,21 @@
+{
+    "id": "construction",
+    "suggested_interests": [
+        {"word": "BIM", "weight": 2.0},
+        {"word": "Revit", "weight": 2.0},
+        {"word": "建設DX", "weight": 2.0},
+        {"word": "CAD", "weight": 1.5},
+        {"word": "建築", "weight": 1.2},
+        {"word": "施工", "weight": 1.2},
+        {"word": "自動化", "weight": 1.0}
+    ],
+    "sources": [
+        {"id": "archifuture", "name": "Archi Future Web", "type": "html", "url": "https://www.archifuture-web.jp/magazine/index2.html", "selector": "a"},
+        {"id": "revitpeeler", "name": "Revit Peeler", "type": "rss", "url": "https://www.revitpeeler.com/feeds/posts/default?alt=rss"},
+        {"id": "ken-it", "name": "建設ITブログ", "type": "rss", "url": "https://ken-it.world/it/feed"},
+        {"id": "contech", "name": "CONTECH", "type": "html", "url": "https://contech.jp/", "selector": "a", "exclude": "/(tag|category|author|about|contact|privacy-policy)/"},
+        {"id": "xtech-contech", "name": "日経xTECH（建設テック）", "type": "html", "url": "https://xtech.nikkei.com/feature/contech/", "selector": "a", "include": "^https://xtech\\.nikkei\\.com/atcl/", "exclude": "/atcl/nxt/info/"},
+        {"id": "q-bim", "name": "BIM/建設DX", "type": "query", "query": "BIM OR 建設DX OR Revit"},
+        {"id": "q-contech", "name": "建設テック", "type": "query", "query": "建設テック OR 施工管理 アプリ"}
+    ]
+}

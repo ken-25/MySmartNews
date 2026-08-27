@@ -1,11 +1,12 @@
-"""ネットワークをスタブして build.py のランキング挙動を検証する（CI用）。
+"""ネットワークをスタブして build.py の収集挙動を検証する（CI用）。
 
-外部フィードに依存せず、以下を保証する:
-  - 同一サイトがTOPを独占しないこと（多様性ペナルティ）
-  - 興味キーワードとはてブ急上昇がスコアに効くこと
+並び順はブラウザ側の責任になったので、ここで見るのは「配信物が正しいか」だけ:
+  - パックごとのシャードが出ること、主観的なスコアを含まないこと
   - URL正規化による重複排除
+  - 同じフィードを複数パックが参照しても1回しか取りに行かないこと
+  - Googleニュース経由の媒体名・タイトル整形・はてブ問い合わせ除外
   - 公開日時のない記事に初回発見時刻が割り当てられること
-  - 取得に失敗したサイトが state から復元されること
+  - 取得に失敗したソースが state から復元されること
 """
 import email.utils
 import json
@@ -19,35 +20,55 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JST = timezone(timedelta(hours=9))
 NOW = datetime.now(JST)
 
-CONFIG = {
-    "categories": [
-        {"id": "it", "name": "IT", "order": 1},
-        {"id": "construction", "name": "建設", "order": 2},
-    ],
-    "interests": [{"word": "BIM", "weight": 2.0}],
-    "discovery": [
-        {"name": "はてブ IT", "url": "https://b.hatena.ne.jp/hotentry/it.rss", "type": "rss"},
-        {"name": "キーワード", "query": "BIM", "type": "keyword"},
-    ],
-    "sites": [
-        {"name": "多産サイト", "url": "https://prolific.example/rss", "type": "rss",
-         "category_id": "it"},
-        {"name": "寡作サイト", "url": "https://quiet.example/rss", "type": "rss",
-         "category_id": "construction"},
-        {"name": "重複サイト", "url": "https://dup.example/rss", "type": "rss",
-         "category_id": "it"},
-        {"name": "スクレイピング", "url": "https://scrape.example/", "type": "html",
-         "selector": "a", "category_id": "construction",
-         "exclude": "/(tag|about)/"},
+INDEX = {
+    "version": 2,
+    "packs": [
+        {"id": "tech", "name": "テック", "order": 1, "default": True,
+         "description": "テスト用", "emoji": "💻"},
+        {"id": "build", "name": "建設", "order": 2, "default": False,
+         "description": "テスト用", "emoji": "🏗"},
     ],
 }
 
+PACKS = {
+    "tech": {
+        "id": "tech",
+        "suggested_interests": [{"word": "BIM", "weight": 2.0}],
+        "sources": [
+            {"id": "prolific", "name": "多産サイト", "type": "rss",
+             "url": "https://prolific.example/rss"},
+            {"id": "dup", "name": "重複サイト", "type": "rss",
+             "url": "https://dup.example/rss"},
+            {"id": "hatena", "name": "はてブ", "type": "rss",
+             "url": "https://b.hatena.ne.jp/hotentry/it.rss"},
+            {"id": "q-bim", "name": "BIM検索", "type": "query", "query": "BIM"},
+        ],
+    },
+    "build": {
+        "id": "build",
+        "suggested_interests": [],
+        "sources": [
+            {"id": "quiet", "name": "寡作サイト", "type": "rss",
+             "url": "https://quiet.example/rss"},
+            {"id": "hatena-again", "name": "はてブ（別ID）", "type": "rss",
+             "url": "https://b.hatena.ne.jp/hotentry/it.rss"},
+            {"id": "scrape", "name": "スクレイピング", "type": "html",
+             "url": "https://scrape.example/", "selector": "a",
+             "exclude": "/(tag|about)/"},
+        ],
+    },
+}
 
-def rss(items):
-    body = ''.join(
-        '<item><title>{}</title><link>{}</link><pubDate>{}</pubDate></item>'.format(
-            title, link, email.utils.format_datetime(NOW - timedelta(minutes=minutes)))
-        for title, link, minutes in items)
+
+def rss(items, source_title=None):
+    body = ''
+    for title, link, minutes in items:
+        source = (f'<source url="https://example.com">{source_title}</source>'
+                  if source_title else '')
+        body += ('<item><title>{}</title><link>{}</link><pubDate>{}</pubDate>{}</item>'
+                 .format(title, link,
+                         email.utils.format_datetime(NOW - timedelta(minutes=minutes)),
+                         source))
     return ('<?xml version="1.0"?><rss version="2.0"><channel>'
             + body + '</channel></rss>')
 
@@ -74,6 +95,7 @@ class Network:
         self.hatena = {}
         self.scrape_ok = True
         self.hatena_requests = []
+        self.feed_requests = []
         self.uri_limit = 4000
         self.scrape_body = None
 
@@ -90,6 +112,8 @@ class Network:
                 error.response.status_code = 414
                 raise error
             return FakeResponse('', {u: self.hatena.get(u, 0) for u in urls})
+
+        self.feed_requests.append(url)
         if 'prolific.example' in url:
             return FakeResponse(rss([
                 (f'多産サイトの記事{i}', f'https://prolific.example/{i}', i * 3)
@@ -105,11 +129,11 @@ class Network:
             return FakeResponse(rss([
                 ('はてブの人気記事', 'https://hot.example/1', 90)]))
         if 'news.google.com' in url:
-            # 実物同様に長いリダイレクトURLを返す（414の再現）
+            # 実物同様に長いリダイレクトURLと、媒体名付きのタイトルを返す
             return FakeResponse(rss([
-                (f'Googleニュース経由のBIM記事{i}',
+                (f'GoogleニュースのBIM記事{i} - 実在メディア',
                  'https://news.google.com/rss/articles/' + 'C' * 500 + str(i), 150 + i)
-                for i in range(30)]))
+                for i in range(30)], source_title='実在メディア'))
         if 'scrape.example' in url:
             if not self.scrape_ok:
                 raise requests.exceptions.ConnectionError('stubbed outage')
@@ -126,9 +150,21 @@ class Network:
         raise requests.exceptions.ConnectionError('unmapped ' + url)
 
 
-def find(data, fragment):
-    for tab in data['tabs']:
-        for article in tab['articles']:
+def read_dist():
+    with open(os.path.join('dist', 'index.json'), encoding='utf-8') as f:
+        index = json.load(f)
+    packs = {}
+    for meta in index['packs']:
+        with open(os.path.join('dist', 'p', meta['id'] + '.json'), encoding='utf-8') as f:
+            packs[meta['id']] = json.load(f)['articles']
+    return index, packs
+
+
+def find(packs, fragment, pack_id=None):
+    for key, articles in packs.items():
+        if pack_id and key != pack_id:
+            continue
+        for article in articles:
             if fragment in article['title']:
                 return article
     return None
@@ -141,13 +177,22 @@ def check(condition, message):
     print(f'✓ {message}')
 
 
+def write_catalog():
+    os.makedirs(os.path.join('catalog', 'packs'), exist_ok=True)
+    with open(os.path.join('catalog', 'index.json'), 'w', encoding='utf-8') as f:
+        json.dump(INDEX, f, ensure_ascii=False)
+    for pack_id, body in PACKS.items():
+        path = os.path.join('catalog', 'packs', f'{pack_id}.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(body, f, ensure_ascii=False)
+
+
 def main():
     workdir = tempfile.mkdtemp()
     shutil.copy(os.path.join(REPO_ROOT, 'build.py'), workdir)
-    with open(os.path.join(workdir, 'sites.json'), 'w', encoding='utf-8') as f:
-        json.dump(CONFIG, f, ensure_ascii=False)
     os.chdir(workdir)
     sys.path.insert(0, workdir)
+    write_catalog()
 
     import requests
     network = Network()
@@ -157,29 +202,41 @@ def main():
 
     network.hatena = {'https://prolific.example/1': 3}
     build.main()
-    with open('news.json', encoding='utf-8') as f:
-        first = json.load(f)
+    index, packs = read_dist()
 
-    top = first['tabs'][0]['articles']
-    # 純粋な新着順なら上位は多産サイトで埋まる。多様性ペナルティが効いていれば
-    # 上位10件に複数のサイトが混ざる。
-    head = top[:10]
-    head_sites = {a['site_name'] for a in head}
-    check(len(head_sites) >= 3,
-          f'TOP上位10件が3サイト以上に分散している (内訳: {sorted(head_sites)})')
-    check(sum(1 for a in head if a['site_name'] == '多産サイト') <= 7,
-          'TOP上位10件を多産サイトが独占していない')
-    check(find(first, 'BIM連携の新機能') is not None,
-          '興味キーワードを含む寡作サイトの記事がTOPに載っている')
+    check(set(packs) == {'tech', 'build'}, 'パックごとにシャードが出力されている')
+    check(all(k['id'] and k['name'] for k in index['packs']),
+          'カタログにパックのメタ情報が載っている')
+    check(index['packs'][0]['suggested_interests'][0]['word'] == 'BIM',
+          'パックの推奨キーワードがカタログに載っている')
 
-    links = [a['link'] for a in top]
-    check(len(links) == len(set(links)), 'TOPに重複記事がない')
-    check(sum(1 for a in top if a['title'] == '多産サイトの記事0') == 1,
+    sample = packs['tech'][0]
+    check('score' not in sample and 'time_ago' not in sample,
+          '配信物に主観的なスコアや整形済み時刻を含まない')
+    check(all(key in sample for key in
+              ('hatena', 'hatena_delta', 'published_at', 'first_seen', 'cluster')),
+          '並べ替えに必要な客観信号が揃っている')
+
+    keys = [a['key'] for a in packs['tech']]
+    check(len(keys) == len(set(keys)), 'パック内に重複記事がない')
+    check(sum(1 for a in packs['tech'] if a['title'] == '多産サイトの記事0') == 1,
           'トラッキングパラメータ違いの同一記事が重複排除されている')
 
-    scraped = find(first, '日時のないスクレイピング記事')
-    check(scraped is not None and scraped['time_ago'],
-          f"公開日時のない記事に相対時刻が付いている ({scraped and scraped['time_ago']})")
+    hatena_fetches = [u for u in network.feed_requests if 'b.hatena.ne.jp' in u]
+    check(len(hatena_fetches) == 1,
+          f'同じフィードを2パックが参照しても取得は1回 ({len(hatena_fetches)}回)')
+    check(find(packs, 'はてブの人気記事', 'build') is not None,
+          '共有フィードの記事が両方のパックに入っている')
+
+    google = find(packs, 'GoogleニュースのBIM記事0')
+    check(google is not None and google['site'] == '実在メディア',
+          f"Googleニュース経由の媒体名を実サイト名にしている ({google and google['site']})")
+    check(google is not None and ' - 実在メディア' not in google['title'],
+          f"タイトル末尾の媒体名が落ちている ({google and google['title']})")
+
+    scraped = find(packs, '日時のないスクレイピング記事')
+    check(scraped is not None and scraped['dated'] is False and scraped['published_at'],
+          '公開日時のない記事に初回発見時刻が入り、推定であると印が付いている')
 
     check(all('news.google.com' not in u
               for chunk in network.hatena_requests for u in chunk),
@@ -190,25 +247,25 @@ def main():
           f'はてブAPIのリクエストがURI長の上限内に収まっている '
           f'({len(network.hatena_requests)}リクエスト)')
 
-    check(find(first, 'このサイトについて') is None,
+    check(find(packs, 'このサイトについて') is None,
           'exclude パターンのリンクが除外されている')
-    check(find(first, '短い') is None, '短すぎるタイトルが除外されている')
-    dated = find(first, '日付が末尾に付いた記事')
+    check(find(packs, '短い') is None, '短すぎるタイトルが除外されている')
+    dated = find(packs, '日付が末尾に付いた記事')
     check(dated is not None and '2026年' not in dated['title'],
           f"タイトル末尾の日付が切り離されている ({dated and dated['title']})")
 
-    check(any(t['name'] == '発見' for t in first['tabs']), '発見タブが生成されている')
-    discovery = [t for t in first['tabs'] if t['name'] == '発見'][0]['articles']
-    check(any('Googleニュース経由' in a['title'] for a in discovery),
-          '登録外のキーワード検索記事が発見タブに入っている')
+    dup_clusters = {a['title']: a['cluster'] for a in packs['tech']
+                    if a['title'] == '多産サイトの記事0'}
+    check(build.cluster_id('同じ 話題！') == build.cluster_id('同じ話題'),
+          '記号や空白の違いを吸収してクラスタIDが一致する')
+    check(all(c for c in dup_clusters.values()), '全記事にクラスタIDが付いている')
 
     # --- URIの上限が想定より厳しい場合に、分割して取り直せることを確認 ---
     network.hatena_requests = []
     network.uri_limit = 200
     network.hatena = {'https://prolific.example/2': 55}
     build.main()
-    with open('news.json', encoding='utf-8') as f:
-        split_run = json.load(f)
+    _, split_run = read_dist()
     rejected = [c for c in network.hatena_requests
                 if sum(len(u) + 5 for u in c) > network.uri_limit]
     check(len(network.hatena_requests) > len(rejected) > 0,
@@ -219,32 +276,26 @@ def main():
           f"分割後にはてブ件数を取得できている ({recovered and recovered['hatena']})")
     network.uri_limit = 4000
 
-    # --- 2周目: はてブが急増した記事が浮上することを確認 ---
+    # --- 2周目: はてブの増分が配信物に載ることを確認 ---
     network.hatena = {'https://prolific.example/1': 120}
     build.main()
-    with open('news.json', encoding='utf-8') as f:
-        second = json.load(f)
-
+    _, second = read_dist()
     risen = find(second, '多産サイトの記事1')
-    check(risen is not None and risen['rising'] and risen['hot'],
-          'はてブが急増した記事が急上昇として検出されている')
-    check(second['tabs'][0]['articles'][0]['title'] == '多産サイトの記事1',
-          '急上昇した記事がTOPの先頭に来ている')
+    check(risen is not None and risen['hatena'] == 120 and risen['hatena_delta'] >= 117,
+          f"はてブの増分が配信されている (delta={risen and risen['hatena_delta']})")
 
-    # --- 3周目: 取得に失敗したサイトが state から復元されることを確認 ---
+    # --- 3周目: 取得に失敗したソースが state から復元されることを確認 ---
     network.scrape_ok = False
     build.main()
-    with open('news.json', encoding='utf-8') as f:
-        third = json.load(f)
+    _, third = read_dist()
     check(find(third, '日時のないスクレイピング記事') is not None,
-          '取得に失敗したサイトの記事が state から復元されている')
+          '取得に失敗したソースの記事が state から復元されている')
 
     # --- 4周目: 取得はできたが全件フィルタされた場合は復元しない ---
     network.scrape_ok = True
     network.scrape_body = '<html><body><a href="/tag/bim">除外されるリンク</a></body></html>'
     build.main()
-    with open('news.json', encoding='utf-8') as f:
-        fourth = json.load(f)
+    _, fourth = read_dist()
     check(find(fourth, '日時のないスクレイピング記事') is None,
           '取得できたうえで0件のときは古い記事を復元しない')
 

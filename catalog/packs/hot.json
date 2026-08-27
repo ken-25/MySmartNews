@@ -1,0 +1,10 @@
+{
+    "id": "hot",
+    "suggested_interests": [],
+    "sources": [
+        {"id": "hatena-all", "name": "はてブ 総合", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/all.rss"},
+        {"id": "hatena-it", "name": "はてブ テクノロジー", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/it.rss"},
+        {"id": "hatena-economics", "name": "はてブ 政治と経済", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/economics.rss"},
+        {"id": "hatena-knowledge", "name": "はてブ 学び", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/knowledge.rss"}
+    ]
+}
