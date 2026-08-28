@@ -1,0 +1,203 @@
+:root {
+    --bg: #f6f6f8;
+    --card-bg: #ffffff;
+    --text: #16171c;
+    --text-muted: #6b6d76;
+    --primary: #2f5fda;
+    --visited: #6d59c9;
+    --border: #e3e4e9;
+    --badge-bg: #eceef2;
+    --badge-text: #45474f;
+    --hot: #c53030;
+    --interest: #b45309;
+    --skeleton: #eceef2;
+    --danger: #c53030;
+
+    --radius-xs: 4px;
+    --radius-sm: 8px;
+    --radius-md: 10px;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0c0d10;
+        --card-bg: #18191e;
+        --text: #f3f3f5;
+        --text-muted: #93949c;
+        --primary: #6690ff;
+        --visited: #a99bf0;
+        --border: #2a2b32;
+        --badge-bg: #212228;
+        --badge-text: #c7c8d0;
+        --hot: #f2555c;
+        --interest: #e2963a;
+        --skeleton: #212228;
+        --danger: #f2555c;
+    }
+}
+
+* { box-sizing: border-box; }
+html {
+    /* 1rem = 16px を基準に、本文サイズはブラウザ/OSの文字サイズ設定に追従する */
+    font-size: 100%;
+}
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; padding: 0; background: var(--bg); color: var(--text); overflow: hidden;
+}
+*:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ヘッダー（タブバー＋設定ボタン） */
+.topbar {
+    display: flex; align-items: stretch;
+    background: var(--card-bg); border-bottom: 1px solid var(--border);
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding-top: env(safe-area-inset-top);
+}
+.tab-bar {
+    display: flex; overflow-x: auto; white-space: nowrap;
+    flex: 1; min-width: 0; scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+.tab {
+    padding: 12px 16px; cursor: pointer; color: var(--text-muted);
+    font-size: 0.875rem; font-weight: 600; border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s; flex-shrink: 0; background: none;
+    border-left: 0; border-right: 0; border-top: 0; font-family: inherit;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.gear {
+    flex-shrink: 0; border: 0; background: var(--card-bg); color: var(--text-muted);
+    font-size: 0.875rem; font-weight: 600; padding: 0 14px; cursor: pointer;
+    box-shadow: -8px 0 8px -8px rgba(0,0,0,0.12); font-family: inherit;
+    transition: color 0.15s;
+}
+.gear:hover { color: var(--text); }
+
+/* スワイプエリア */
+.swipe-container {
+    display: flex; overflow-x: auto; scroll-snap-type: x mandatory;
+    scroll-behavior: smooth; width: 100vw; height: 100vh; height: 100dvh;
+    scrollbar-width: none; padding-top: calc(45px + env(safe-area-inset-top));
+}
+.swipe-container::-webkit-scrollbar { display: none; }
+.swipe-item {
+    width: 100vw; flex-shrink: 0; scroll-snap-align: start; overflow-y: auto;
+    -webkit-overflow-scrolling: touch; padding: 15px;
+    padding-bottom: calc(30px + env(safe-area-inset-bottom));
+}
+
+/* セクション見出し */
+.section-title {
+    font-size: 0.75rem; font-weight: 600; color: var(--text-muted);
+    margin: 18px 4px 8px; letter-spacing: 0.03em; text-transform: uppercase;
+}
+.swipe-item > .section-title:first-child { margin-top: 0; }
+
+/* 記事カード */
+.article {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 15px; margin-bottom: 10px;
+    display: block; text-decoration: none; color: inherit;
+    transition: border-color 0.15s;
+}
+.article:hover { border-color: var(--text-muted); }
+.article .title {
+    color: var(--text); font-size: 0.9375rem; line-height: 1.4;
+    font-weight: 500; margin-bottom: 8px;
+}
+.article:visited .title { color: var(--visited); }
+
+/* サムネイル付きカード（画像がある記事） */
+.article.medium .body { display: flex; gap: 12px; align-items: flex-start; }
+.article.medium .thumb {
+    width: 88px; height: 88px; flex-shrink: 0; object-fit: cover;
+    border-radius: var(--radius-sm); background: var(--skeleton);
+}
+.article.medium .text { flex: 1; min-width: 0; }
+
+.meta {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    font-size: 0.6875rem; color: var(--text-muted);
+}
+.site-badge { background: var(--badge-bg); padding: 3px 6px; border-radius: var(--radius-xs); color: var(--badge-text); }
+.badge { padding: 3px 6px; border-radius: var(--radius-xs); font-weight: 600; }
+.badge.hot { color: #fff; background: var(--hot); }
+.badge.new { color: var(--primary); border: 1px solid var(--primary); }
+.badge.interest { color: #fff; background: var(--interest); }
+.badge.also { background: var(--badge-bg); color: var(--badge-text); font-weight: 500; }
+
+.footer { text-align: center; color: var(--text-muted); font-size: 0.75rem; margin-top: 20px; }
+.empty { text-align: center; color: var(--text-muted); font-size: 0.875rem; padding: 40px 0; line-height: 1.7; }
+.status { text-align: center; color: var(--text-muted); font-size: 0.875rem; padding: 60px 20px; }
+
+/* 設定シート */
+.sheet {
+    position: fixed; inset: 0; z-index: 200; background: var(--bg);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: calc(12px + env(safe-area-inset-top)) 15px calc(40px + env(safe-area-inset-bottom));
+}
+.sheet[hidden] { display: none; }
+.sheet-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+}
+.sheet-head h1 { font-size: 1.1875rem; font-weight: 600; margin: 0; }
+.sheet h2 {
+    font-size: 0.75rem; color: var(--text-muted); margin: 26px 4px 8px;
+    letter-spacing: 0.03em; font-weight: 600; text-transform: uppercase;
+}
+.sheet .hint { font-size: 0.75rem; color: var(--text-muted); margin: 0 4px 8px; line-height: 1.6; }
+.group { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.row {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+}
+.row:last-child { border-bottom: 0; }
+.row .grow { flex: 1; min-width: 0; }
+.row .name { font-size: 0.9375rem; }
+.row .desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
+.row.dim .name { color: var(--text-muted); }
+.row input[type="checkbox"] { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--primary); }
+
+/* プライマリボタン（設定シートの完了・追加） */
+.sheet-head .close, .field button {
+    border: 0; background: var(--primary); color: #fff; font-weight: 600;
+    border-radius: var(--radius-sm); cursor: pointer; font-size: 0.875rem;
+    font-family: inherit; transition: filter 0.15s;
+}
+.sheet-head .close:hover, .field button:hover { filter: brightness(1.08); }
+.sheet-head .close { padding: 8px 18px; }
+.field button { padding: 9px 16px; }
+
+.iconbtn {
+    border: 1px solid var(--border); background: var(--card-bg); color: var(--text);
+    border-radius: var(--radius-sm); width: 32px; height: 32px; font-size: 0.875rem; cursor: pointer;
+    flex-shrink: 0; font-family: inherit; transition: border-color 0.15s;
+}
+.iconbtn:hover:not(:disabled) { border-color: var(--text-muted); }
+.iconbtn:disabled { opacity: 0.3; }
+.iconbtn.danger { color: var(--danger); }
+.field { display: flex; gap: 8px; padding: 12px 14px; flex-wrap: wrap; }
+.field input[type="text"], .field select {
+    flex: 1; min-width: 120px; font-size: 1rem; padding: 9px 10px; font-family: inherit;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg); color: var(--text);
+}
+.chiprow { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
+.chip {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 0.8125rem;
+    background: var(--badge-bg); color: var(--badge-text);
+    padding: 6px 10px; border-radius: var(--radius-sm);
+}
+.chip button {
+    border: 0; background: none; color: var(--text-muted); cursor: pointer;
+    font-size: 0.875rem; padding: 0; line-height: 1; font-family: inherit;
+}
+.linkbtn {
+    border: 0; background: none; color: var(--primary); font-size: 0.875rem;
+    padding: 12px 14px; cursor: pointer; font-family: inherit; text-align: left;
+    display: block; width: 100%;
+}
+.linkbtn.danger { color: var(--danger); }
+.note { font-size: 0.75rem; color: var(--text-muted); margin: 10px 4px 0; line-height: 1.6; }

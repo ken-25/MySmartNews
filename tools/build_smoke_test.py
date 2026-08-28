@@ -24,9 +24,9 @@ INDEX = {
     "version": 2,
     "packs": [
         {"id": "tech", "name": "テック", "order": 1, "default": True,
-         "description": "テスト用", "emoji": "💻"},
+         "description": "テスト用"},
         {"id": "build", "name": "建設", "order": 2, "default": False,
-         "description": "テスト用", "emoji": "🏗"},
+         "description": "テスト用"},
     ],
 }
 

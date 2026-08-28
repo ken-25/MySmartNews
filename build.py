@@ -31,7 +31,7 @@ JST = timezone(timedelta(hours=+9), 'JST')
 CATALOG_DIR = 'catalog'
 STATE_PATH = os.path.join('data', 'state.json')
 DIST_DIR = 'dist'
-STATIC_FILES = ['index.html', 'app.js', 'manifest.webmanifest']
+STATIC_FILES = ['index.html', 'app.js', 'style.css', 'manifest.webmanifest']
 
 USER_AGENT = 'MySmartNewsBot/2.0 (+https://github.com/ken-25/MySmartNews)'
 
@@ -482,7 +482,6 @@ def write_dist(packs, per_pack, now):
         index_packs.append({
             "id": pack['id'],
             "name": pack['name'],
-            "emoji": pack.get('emoji', ''),
             "description": pack.get('description', ''),
             "default": bool(pack.get('default')),
             "count": len(articles),

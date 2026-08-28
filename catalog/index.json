@@ -4,7 +4,6 @@
         {
             "id": "hot",
             "name": "話題",
-            "emoji": "🔥",
             "description": "はてなブックマークで今伸びている記事。ジャンル横断のランキング。",
             "order": 1,
             "default": true
@@ -12,7 +11,6 @@
         {
             "id": "top",
             "name": "総合",
-            "emoji": "📰",
             "description": "国内外の主要ニュース。",
             "order": 2,
             "default": true
@@ -20,7 +18,6 @@
         {
             "id": "it",
             "name": "IT・テック",
-            "emoji": "💻",
             "description": "ITニュース、ガジェット、Web技術。",
             "order": 3,
             "default": true
@@ -28,7 +25,6 @@
         {
             "id": "ai",
             "name": "AI",
-            "emoji": "🤖",
             "description": "生成AI・LLM・機械学習の話題。",
             "order": 4,
             "default": true
@@ -36,7 +32,6 @@
         {
             "id": "business",
             "name": "ビジネス",
-            "emoji": "📈",
             "description": "経済、経営、働き方。",
             "order": 5,
             "default": false
@@ -44,7 +39,6 @@
         {
             "id": "dev",
             "name": "開発者",
-            "emoji": "🛠",
             "description": "プログラミングと開発の実践的な記事。",
             "order": 6,
             "default": false
@@ -52,7 +46,6 @@
         {
             "id": "construction",
             "name": "建設・建築",
-            "emoji": "🏗",
             "description": "BIM、建設DX、施工管理。専門メディアと業界ブログ。",
             "order": 7,
             "default": false
@@ -60,7 +53,6 @@
         {
             "id": "science",
             "name": "科学",
-            "emoji": "🔬",
             "description": "研究、宇宙、生命科学。",
             "order": 8,
             "default": false
@@ -68,7 +60,6 @@
         {
             "id": "life",
             "name": "暮らし",
-            "emoji": "🏠",
             "description": "健康、住まい、お金まわり。",
             "order": 9,
             "default": false
@@ -76,7 +67,6 @@
         {
             "id": "entertainment",
             "name": "エンタメ",
-            "emoji": "🎬",
             "description": "映画、音楽、ゲーム、カルチャー。",
             "order": 10,
             "default": false
@@ -84,7 +74,6 @@
         {
             "id": "sports",
             "name": "スポーツ",
-            "emoji": "⚽",
             "description": "国内外のスポーツニュース。",
             "order": 11,
             "default": false
