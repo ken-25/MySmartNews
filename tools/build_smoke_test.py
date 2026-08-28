@@ -208,6 +208,8 @@ def write_catalog():
 def main():
     workdir = tempfile.mkdtemp()
     shutil.copy(os.path.join(REPO_ROOT, 'build.py'), workdir)
+    # ビルドIDの焼き込みを確かめたいので表示側のファイルも持ち込む
+    shutil.copy(os.path.join(REPO_ROOT, 'app.js'), workdir)
     os.chdir(workdir)
     sys.path.insert(0, workdir)
     write_catalog()
@@ -225,6 +227,15 @@ def main():
     check(set(packs) == {'tech', 'build'}, 'パックごとにシャードが出力されている')
     check(all(k['id'] and k['name'] for k in index['packs']),
           'カタログにパックのメタ情報が載っている')
+
+    with open(os.path.join('dist', 'app.js'), encoding='utf-8') as f:
+        served_app = f.read()
+    check(index.get('app_build') and len(index['app_build']) == 7,
+          f"配信物にビルドIDが載っている ({index.get('app_build')})")
+    check(f"var APP_BUILD = '{index['app_build']}';" in served_app,
+          '配信する app.js に同じビルドIDが焼き込まれている')
+    check("var APP_BUILD = 'dev';" not in served_app,
+          'ビルドIDのプレースホルダが残っていない')
     check(index['packs'][0]['suggested_interests'][0]['word'] == 'BIM',
           'パックの推奨キーワードがカタログに載っている')
 

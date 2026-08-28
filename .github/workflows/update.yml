@@ -3,6 +3,10 @@ name: Update News
 on:
   schedule:
     - cron: '0 * * * *' # 毎時0分（UTC）に実行
+  # main が動いたら作り直す。配信物には app.js / style.css / index.html も
+  # 含まれるので、これがないと表示側の変更が次の毎時ビルドまで反映されない。
+  push:
+    branches: [main]
   workflow_dispatch: # GitHub上から手動実行できるボタンを追加
 
 permissions:
