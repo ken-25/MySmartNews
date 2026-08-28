@@ -35,6 +35,9 @@ STATIC_FILES = ['index.html', 'app.js', 'style.css', 'manifest.webmanifest']
 
 USER_AGENT = 'MySmartNewsBot/2.0 (+https://github.com/ken-25/MySmartNews)'
 
+# app.js のこの行をビルドIDで置き換えて配信する（設定画面に出す版数）
+APP_BUILD_MARKER = "var APP_BUILD = 'dev';"
+
 # type: "query" が使う検索フィード。{query} にURLエンコード済みの検索式が入る。
 # 別の検索サービスに乗り換えるならここだけ差し替えればよい。
 KEYWORD_SEARCH_FEED = ('https://news.google.com/rss/search'
@@ -573,6 +576,38 @@ def serialize(article):
     }
 
 
+def app_build_id():
+    """表示側のファイルから作るビルドID。
+
+    index.json は毎回取り直されるのに app.js はブラウザにキャッシュされるので、
+    「配信されている版」と「いま動いている版」がずれることがある。両方を
+    設定画面に出せるように、同じIDを app.js にも焼き込む。
+    """
+    digest = hashlib.sha1()
+    for name in STATIC_FILES:
+        if os.path.exists(name):
+            with open(name, 'rb') as f:
+                digest.update(f.read())
+    return digest.hexdigest()[:7]
+
+
+def copy_static(build):
+    for name in STATIC_FILES:
+        if not os.path.exists(name):
+            continue
+        target = os.path.join(DIST_DIR, name)
+        if name == 'app.js':
+            with open(name, 'r', encoding='utf-8') as f:
+                source = f.read()
+            with open(target, 'w', encoding='utf-8') as f:
+                f.write(source.replace(APP_BUILD_MARKER,
+                                       f"var APP_BUILD = '{build}';", 1))
+        else:
+            shutil.copy(name, target)
+    if os.path.exists('_headers'):
+        shutil.copy('_headers', os.path.join(DIST_DIR, '_headers'))
+
+
 def write_dist(packs, per_pack, now):
     os.makedirs(os.path.join(DIST_DIR, 'p'), exist_ok=True)
 
@@ -601,22 +636,20 @@ def write_dist(packs, per_pack, now):
                         for s in pack['sources']],
         })
 
+    build = app_build_id()
     index = {
         "version": 2,
         "updated_at": to_iso(now),
         "updated_label": now.strftime('%Y-%m-%d %H:%M'),
+        "app_build": build,
         "packs": index_packs,
     }
     with open(os.path.join(DIST_DIR, 'index.json'), 'w', encoding='utf-8') as f:
         json.dump(index, f, ensure_ascii=False, separators=(',', ':'))
 
-    for name in STATIC_FILES:
-        if os.path.exists(name):
-            shutil.copy(name, os.path.join(DIST_DIR, name))
-    if os.path.exists('_headers'):
-        shutil.copy('_headers', os.path.join(DIST_DIR, '_headers'))
+    copy_static(build)
     total = sum(len(a) for a in per_pack.values())
-    print(f"{DIST_DIR}/: {len(index_packs)} パック / 延べ {total} 記事")
+    print(f"{DIST_DIR}/: {len(index_packs)} パック / 延べ {total} 記事 (build {build})")
 
 
 def main():

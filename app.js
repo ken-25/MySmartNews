@@ -60,6 +60,10 @@
     var TOP_LIMIT = 200;
     var PACK_LIMIT = 200;
     var STORAGE_KEY = 'msn.v2';
+    /* 配信時に build.py が実際のビルドIDへ書き換える行（この形のまま置換される）。
+     * index.json 側の app_build と突き合わせて、ブラウザが古い app.js を
+     * キャッシュしたまま動いていないかを設定画面で確認できるようにする。 */
+    var APP_BUILD = 'dev';
     var WEIGHTS = [
         { label: '弱', value: 0.6 },
         { label: '中', value: 1.2 },
@@ -1209,6 +1213,24 @@
         parent.appendChild(box);
     }
 
+    /* 「直したはずの機能が出てこない」ときに、まず疑うべきはブラウザが
+     * 古い app.js を掴んだままかどうか。配信中の版と突き合わせて出す。 */
+    function renderVersionSection(parent) {
+        var served = (catalog && catalog.app_build) || '';
+        parent.appendChild(sectionTitle('バージョン'));
+        var box = group();
+        box.appendChild(row('いま動いているアプリ', APP_BUILD));
+        if (served) { box.appendChild(row('配信されているアプリ', served)); }
+        box.appendChild(row('記事の更新',
+            (catalog && catalog.updated_label) || '—'));
+        parent.appendChild(box);
+        if (served && APP_BUILD !== 'dev' && served !== APP_BUILD) {
+            parent.appendChild(hint(
+                'ブラウザが古いアプリを保持しています。'
+                + 'この画面を閉じてページを再読み込みすると新しくなります。'));
+        }
+    }
+
     function renderSettings() {
         sheetBody.textContent = '';
         if (!catalog) { return; }
@@ -1218,6 +1240,7 @@
         renderCustomSection(sheetBody);
         renderMuteSection(sheetBody);
         renderDataSection(sheetBody);
+        renderVersionSection(sheetBody);
     }
 
     function openSettings() {
