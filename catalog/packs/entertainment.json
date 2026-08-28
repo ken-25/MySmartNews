@@ -2,8 +2,8 @@
     "id": "entertainment",
     "suggested_interests": [],
     "sources": [
-        {"id": "gnews-entertainment", "name": "Googleニュース エンタメ", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "hatena-fun", "name": "はてブ おもしろ", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/fun.rss"},
+        {"id": "gnews-entertainment", "tier": "media", "name": "Googleニュース エンタメ", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "hatena-fun", "tier": "social", "name": "はてブ おもしろ", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/fun.rss"},
         {"id": "q-game", "name": "ゲーム", "type": "query", "query": "ゲーム 新作 OR アップデート 配信"}
     ]
 }

@@ -2,8 +2,8 @@
     "id": "life",
     "suggested_interests": [],
     "sources": [
-        {"id": "gnews-health", "name": "Googleニュース 健康", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "hatena-life", "name": "はてブ 暮らし", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/life.rss"},
+        {"id": "gnews-health", "tier": "media", "name": "Googleニュース 健康", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "hatena-life", "tier": "social", "name": "はてブ 暮らし", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/life.rss"},
         {"id": "q-money", "name": "お金", "type": "query", "query": "家計 OR 節約 OR NISA OR 住宅ローン"}
     ]
 }

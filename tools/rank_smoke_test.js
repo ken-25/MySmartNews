@@ -16,6 +16,7 @@ function fakeElement() {
         classList: { add() {}, remove() {}, toggle() {} },
         addEventListener() {},
         appendChild(child) { node.children.push(child); return child; },
+        insertBefore(child) { node.children.push(child); return child; },
         removeChild() {},
         setAttribute() {},
         getAttribute() { return null; },
@@ -43,6 +44,8 @@ function makeContext() {
         location: { hash: '', pathname: '/', search: '', origin: 'https://example.test' },
         history: { replaceState() {} },
         navigator: {},
+        setTimeout: setTimeout,
+        clearTimeout: clearTimeout,
         fetch() { return Promise.reject(new Error('network disabled in test')); },
         IntersectionObserver: function () { return { observe() {} }; },
         DOMParser: function () {},
@@ -76,7 +79,7 @@ function article(overrides) {
     const now = Date.now();
     return Object.assign({
         title: '記事', link: 'https://example.com/a', key: 'https://example.com/a',
-        site: 'サイト', source: 's', cluster: null,
+        site: 'サイト', source: 's', cluster: null, tier: 'media', reach: 1,
         published_at: new Date(now - HOUR).toISOString(),
         dated: true, first_seen: new Date(now - HOUR).toISOString(),
         image: null, hatena: 0, hatena_delta: 0
@@ -183,6 +186,77 @@ check(merged.length === 2, '同じ話題が1件にまとめられる (' + merged
 const leader = merged.filter((a) => a.cluster === 'c1')[0];
 check(leader.also === 1, 'まとめた件数が記録されている (他' + leader.also + '件)');
 check(leader.hatena === 40, 'クラスタ内で一番ブックマークの多い数を引き継ぐ');
+
+/* --- TOP: 重要度の判定にはてブ数を使わない --- */
+msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {} });
+const blog = article({
+    title: '個人ブログの長文エッセイ', link: 'https://blog.example/1',
+    key: 'https://blog.example/1', site: 'はてブ 総合', tier: 'social',
+    reach: 1, hatena: 900, hatena_delta: 400, cluster: 'b1'
+});
+const bigNews = [];
+for (let i = 0; i < 4; i++) {
+    bigNews.push(article({
+        title: '大きなニュース（' + i + '社目の見出し）',
+        link: 'https://media' + i + '.example/1',
+        key: 'https://media' + i + '.example/1',
+        site: '媒体' + i, tier: i === 0 ? 'wire' : 'media', reach: 4,
+        cluster: 'n1', hatena: 3,
+        published_at: new Date(Date.now() - 5 * HOUR).toISOString()
+    }));
+}
+let top = msn.buildTop(msn.merge([bigNews.concat([blog]).concat(prolific(20))]), 20);
+check(top[0].cluster === 'n1',
+    '4媒体が報じたニュースが、はてブ900の個人ブログより先頭に来る (' + top[0].title + ')');
+check(top[0].lane === 'big', '先頭の記事が「主要」レーンから選ばれている');
+check(top.filter((a) => a.cluster === 'n1').length === 1,
+    '同じ話題は代表1件にまとまっている');
+check(new Set(top.slice(0, 6).map((a) => a.lane)).size >= 2,
+    '上位が1種類のレーンで固まらず混ざっている ('
+    + top.slice(0, 6).map((a) => a.lane).join(',') + ')');
+
+/* --- TOP: 話題は載るが、重要度としては扱われない --- */
+check(top.some((a) => a.key === blog.key), 'はてブで伸びた記事もTOPには載る');
+check(top.filter((a) => a.key === blog.key)[0].lane !== 'big',
+    'はてブで伸びただけの記事は「主要」レーンに入らない');
+
+/* --- 既読の記事は次に開いたとき下がる --- */
+msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {},
+                  seen: { 'https://prolific.example/0': Date.now() } });
+pool = prolific(20);
+ranked = msn.rank(pool, 5);
+check(ranked[0].key !== 'https://prolific.example/0',
+    '一度見た記事が最新でも先頭から外れる');
+
+/* --- クリックした記事から話題を学習する --- */
+msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {} });
+msn.learnFrom('Revitのアドインで施工図を自動生成する');
+const topics = Object.keys(msn.getSettings().topics);
+check(topics.length > 0, '見出しから話題の語を拾っている (' + topics.join(', ') + ')');
+check(topics.indexOf('revit') !== -1, '英字の語を小文字にして覚えている');
+pool = prolific(20).concat([
+    article({ title: 'Revitの新しい使い方', link: 'https://quiet.example/revit',
+              key: 'https://quiet.example/revit', site: '寡作サイト',
+              published_at: new Date(Date.now() - 6 * HOUR).toISOString() })
+]);
+top = msn.buildTop(pool, 10);
+const recommended = top.filter((a) => a.key === 'https://quiet.example/revit')[0];
+check(recommended && recommended.lane === 'you',
+    'キーワードを1つも設定していなくても、学習した話題がおすすめに載る');
+
+/* --- ソースの性質でTOPの重みが変わる --- */
+msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {} });
+const same = { published_at: new Date(Date.now() - HOUR).toISOString(), reach: 1 };
+ranked = msn.rank([
+    article(Object.assign({ title: '通信社の記事', link: 'https://w.example/1',
+                            key: 'https://w.example/1', site: '通信社',
+                            tier: 'wire' }, same)),
+    article(Object.assign({ title: 'ソーシャル経由の記事', link: 'https://s.example/1',
+                            key: 'https://s.example/1', site: 'ソーシャル',
+                            tier: 'social', hatena: 200 }, same))
+], 2);
+check(ranked[0].tier === 'wire',
+    'はてブ200件のソーシャル経由より、通信社の記事が上に来る');
 
 if (failures) {
     console.log('\n' + failures + '件のチェックに失敗しました');

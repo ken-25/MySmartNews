@@ -2,9 +2,9 @@
     "id": "top",
     "suggested_interests": [],
     "sources": [
-        {"id": "gnews-top", "name": "Googleニュース 主要", "type": "rss", "url": "https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "gnews-nation", "name": "Googleニュース 国内", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/NATION?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "gnews-world", "name": "Googleニュース 国際", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/WORLD?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "nhk-main", "name": "NHKニュース", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat0.xml"}
+        {"id": "gnews-top", "tier": "media", "name": "Googleニュース 主要", "type": "rss", "url": "https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "gnews-nation", "tier": "media", "name": "Googleニュース 国内", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/NATION?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "gnews-world", "tier": "media", "name": "Googleニュース 国際", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/WORLD?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "nhk-main", "tier": "wire", "name": "NHKニュース", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat0.xml"}
     ]
 }

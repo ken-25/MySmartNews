@@ -2,8 +2,8 @@
     "id": "science",
     "suggested_interests": [],
     "sources": [
-        {"id": "gnews-science", "name": "Googleニュース 科学", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "hatena-knowledge-sci", "name": "はてブ 学び", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/knowledge.rss"},
+        {"id": "gnews-science", "tier": "media", "name": "Googleニュース 科学", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "hatena-knowledge-sci", "tier": "social", "name": "はてブ 学び", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/knowledge.rss"},
         {"id": "q-space", "name": "宇宙", "type": "query", "query": "宇宙 OR ロケット打ち上げ OR 探査機"}
     ]
 }

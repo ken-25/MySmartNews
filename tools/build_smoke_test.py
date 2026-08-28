@@ -7,6 +7,8 @@
   - Googleニュース経由の媒体名・タイトル整形・はてブ問い合わせ除外
   - 公開日時のない記事に初回発見時刻が割り当てられること
   - 取得に失敗したソースが state から復元されること
+  - ソースの性質（tier）が記事に載ること
+  - 見出しの違う同じ話題がまとまり、報じた媒体数（reach）が数えられること
 """
 import email.utils
 import json
@@ -39,9 +41,15 @@ PACKS = {
              "url": "https://prolific.example/rss"},
             {"id": "dup", "name": "重複サイト", "type": "rss",
              "url": "https://dup.example/rss"},
-            {"id": "hatena", "name": "はてブ", "type": "rss",
+            {"id": "hatena", "name": "はてブ", "type": "rss", "tier": "social",
              "url": "https://b.hatena.ne.jp/hotentry/it.rss"},
             {"id": "q-bim", "name": "BIM検索", "type": "query", "query": "BIM"},
+            {"id": "wire", "name": "通信社", "type": "rss", "tier": "wire",
+             "url": "https://wire.example/rss"},
+            {"id": "paper", "name": "全国紙", "type": "rss",
+             "url": "https://paper.example/rss"},
+            {"id": "local", "name": "地方紙", "type": "rss",
+             "url": "https://local.example/rss"},
         ],
     },
     "build": {
@@ -118,6 +126,16 @@ class Network:
             return FakeResponse(rss([
                 (f'多産サイトの記事{i}', f'https://prolific.example/{i}', i * 3)
                 for i in range(30)]))
+        # 同じ事件を各社が別の見出しで報じる。まとまって reach=3 になるはず。
+        if 'wire.example' in url:
+            return FakeResponse(rss([
+                ('政府が建設DXの支援制度を発表', 'https://wire.example/1', 20)]))
+        if 'paper.example' in url:
+            return FakeResponse(rss([
+                ('政府が建設DXの支援制度を発表へ', 'https://paper.example/1', 25)]))
+        if 'local.example' in url:
+            return FakeResponse(rss([
+                ('政府、建設DXの支援制度を発表', 'https://local.example/1', 30)]))
         if 'quiet.example' in url:
             return FakeResponse(rss([
                 ('BIM連携の新機能', 'https://quiet.example/bim', 200)]))
@@ -214,8 +232,29 @@ def main():
     check('score' not in sample and 'time_ago' not in sample,
           '配信物に主観的なスコアや整形済み時刻を含まない')
     check(all(key in sample for key in
-              ('hatena', 'hatena_delta', 'published_at', 'first_seen', 'cluster')),
+              ('hatena', 'hatena_delta', 'published_at', 'first_seen', 'cluster',
+               'tier', 'reach')),
           '並べ替えに必要な客観信号が揃っている')
+
+    hatena_article = find(packs, 'はてブの人気記事', 'tech')
+    check(hatena_article is not None and hatena_article['tier'] == 'social',
+          'カタログで指定した tier が記事に載っている '
+          f"({hatena_article and hatena_article['tier']})")
+    searched = find(packs, 'GoogleニュースのBIM記事1')
+    check(searched is not None and searched['tier'] == 'search',
+          f"検索フィード経由の記事に既定の tier が付いている "
+          f"({searched and searched['tier']})")
+
+    wire = find(packs, '政府が建設DXの支援制度を発表', 'tech')
+    same_story = [a for a in packs['tech']
+                  if wire and a['cluster'] == wire['cluster']]
+    check(len(same_story) == 3,
+          f'見出しの違う同じ話題が1つのクラスタにまとまっている ({len(same_story)}件)')
+    check(wire is not None and wire['reach'] == 3,
+          f"報じた媒体数が数えられている (reach={wire and wire['reach']})")
+    check(all(a['reach'] == 1 for a in packs['tech']
+              if a['title'].startswith('多産サイトの記事')),
+          '誰も追随していない記事の reach は 1 のまま')
 
     keys = [a['key'] for a in packs['tech']]
     check(len(keys) == len(set(keys)), 'パック内に重複記事がない')

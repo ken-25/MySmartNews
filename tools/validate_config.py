@@ -6,6 +6,7 @@ import sys
 
 CATALOG_DIR = 'catalog'
 VALID_TYPES = {'rss', 'html', 'query'}
+VALID_TIERS = {'wire', 'media', 'search', 'social'}
 
 
 def load(path):
@@ -25,6 +26,10 @@ def check_source(pack_id, source, seen_ids):
 
     assert source['type'] in VALID_TYPES, \
         f'[{pack_id}] ソース "{name}" の type "{source["type"]}" は無効です'
+    if 'tier' in source:
+        assert source['tier'] in VALID_TIERS, \
+            f'[{pack_id}] ソース "{name}" の tier "{source["tier"]}" は無効です' \
+            f'（{sorted(VALID_TIERS)} のいずれか）'
     if source['type'] == 'query':
         assert source.get('query'), f'[{pack_id}] ソース "{name}" に query がありません'
     else:

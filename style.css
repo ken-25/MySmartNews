@@ -87,13 +87,6 @@ body {
     padding-bottom: calc(30px + env(safe-area-inset-bottom));
 }
 
-/* セクション見出し */
-.section-title {
-    font-size: 0.75rem; font-weight: 600; color: var(--text-muted);
-    margin: 18px 4px 8px; letter-spacing: 0.03em; text-transform: uppercase;
-}
-.swipe-item > .section-title:first-child { margin-top: 0; }
-
 /* 記事カード */
 .article {
     background: var(--card-bg); border: 1px solid var(--border);
@@ -126,6 +119,16 @@ body {
 .badge.new { color: var(--primary); border: 1px solid var(--primary); }
 .badge.interest { color: #fff; background: var(--interest); }
 .badge.also { background: var(--badge-bg); color: var(--badge-text); font-weight: 500; }
+/* TOPは見出しで区切らないので、なぜこの記事が出ているのかはここで示す */
+.badge.lane.big { color: var(--card-bg); background: var(--text); }
+.badge.lane.you { color: var(--interest); border: 1px solid var(--interest); }
+
+/* 無限スクロールの番人。文字が入るまでは高さゼロで存在だけしている */
+.more {
+    text-align: center; color: var(--text-muted); font-size: 0.75rem;
+    padding: 0; line-height: 2.4;
+}
+.more:empty { line-height: 0; }
 
 .footer { text-align: center; color: var(--text-muted); font-size: 0.75rem; margin-top: 20px; }
 .empty { text-align: center; color: var(--text-muted); font-size: 0.875rem; padding: 40px 0; line-height: 1.7; }
