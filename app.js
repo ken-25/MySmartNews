@@ -16,7 +16,7 @@
     var POPULARITY_WEIGHT = 0.6;   // はてブ累計数の効き
     var VELOCITY_WEIGHT = 1.2;     // はてブ増加数（急上昇）の効き
     var AFFINITY_WEIGHT = 0.5;     // よく読むサイトの効き
-    var HOT_THRESHOLD = 30;        // 🔥 バッジを出す累計ブックマーク数
+    var HOT_THRESHOLD = 30;        // バッジを出す累計ブックマーク数
     var RISING_THRESHOLD = 10;     // 急上昇と見なす増分
     var NEW_WINDOW_HOURS = 3;      // NEW バッジを出す初回発見からの時間
     var TOP_LIMIT = 60;
@@ -373,7 +373,7 @@
         if (hatena >= HOT_THRESHOLD || rising) {
             var label = rising ? '急上昇' : '';
             if (hatena) { label = label ? label + ' ' + hatena : String(hatena); }
-            meta.appendChild(el('span', 'badge hot', '🔥 ' + (label || '話題')));
+            meta.appendChild(el('span', 'badge hot', label || '話題'));
         }
         if (article.matched && article.matched.length) {
             meta.appendChild(el('span', 'badge interest', article.matched[0]));
@@ -458,9 +458,9 @@
         var forYou = take(function (a) { return a.matched && a.matched.length; }, 8);
         var rest = take(function () { return true; }, articles.length);
 
-        appendSection(pane, hot.length ? '🔥 話題' : null, hot, now);
-        appendSection(pane, '⭐ あなた向け', forYou, now);
-        appendSection(pane, (forYou.length || hot.length) ? '🆕 新着' : null, rest, now);
+        appendSection(pane, hot.length ? '話題' : null, hot, now);
+        appendSection(pane, 'あなた向け', forYou, now);
+        appendSection(pane, (forYou.length || hot.length) ? '新着' : null, rest, now);
     }
 
     function emptyPane(message) {
@@ -525,7 +525,7 @@
 
         if (tabs[0].articles.length === 0) {
             container.appendChild(emptyPane(
-                'まだ表示する記事がありません。\n右上の ⚙ からカテゴリを選んでください。'));
+                'まだ表示する記事がありません。\n右上の「設定」からカテゴリを選んでください。'));
             return;
         }
 

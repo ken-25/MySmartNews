@@ -4,6 +4,8 @@
   Cache-Control: public, max-age=120, stale-while-revalidate=600
 /app.js
   Cache-Control: public, max-age=300
+/style.css
+  Cache-Control: public, max-age=300
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer

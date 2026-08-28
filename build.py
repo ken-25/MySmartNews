@@ -31,7 +31,7 @@ JST = timezone(timedelta(hours=+9), 'JST')
 CATALOG_DIR = 'catalog'
 STATE_PATH = os.path.join('data', 'state.json')
 DIST_DIR = 'dist'
-STATIC_FILES = ['index.html', 'app.js', 'manifest.webmanifest']
+STATIC_FILES = ['index.html', 'app.js', 'style.css', 'manifest.webmanifest']
 
 USER_AGENT = 'MySmartNewsBot/2.0 (+https://github.com/ken-25/MySmartNews)'
 
