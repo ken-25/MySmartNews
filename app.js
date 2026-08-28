@@ -510,7 +510,7 @@
             if (!articles.length) { return; }
             tabs.push({
                 id: 'pack-' + pack.id,
-                name: (pack.emoji ? pack.emoji + ' ' : '') + pack.name,
+                name: pack.name,
                 articles: articles
             });
         });
@@ -627,7 +627,7 @@
         settings.packs.forEach(function (id, index) {
             var meta = packMeta(id);
             if (!meta) { return; }
-            var node = row((meta.emoji ? meta.emoji + ' ' : '') + meta.name, meta.description);
+            var node = row(meta.name, meta.description);
             node.appendChild(iconButton('↑', function () {
                 movePack(id, -1); applyAndRerender();
             }, index === 0));
@@ -642,7 +642,7 @@
 
         (catalog.packs || []).forEach(function (meta) {
             if (settings.packs.indexOf(meta.id) !== -1) { return; }
-            var node = row((meta.emoji ? meta.emoji + ' ' : '') + meta.name, meta.description);
+            var node = row(meta.name, meta.description);
             node.classList.add('dim');
             node.appendChild(iconButton('＋', function () {
                 subscribe(meta.id); applyAndRerender();

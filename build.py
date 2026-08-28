@@ -482,7 +482,6 @@ def write_dist(packs, per_pack, now):
         index_packs.append({
             "id": pack['id'],
             "name": pack['name'],
-            "emoji": pack.get('emoji', ''),
             "description": pack.get('description', ''),
             "default": bool(pack.get('default')),
             "count": len(articles),

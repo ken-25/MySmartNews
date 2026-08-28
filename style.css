@@ -1,33 +1,37 @@
 :root {
-    --bg: #f2f2f7;
+    --bg: #f6f6f8;
     --card-bg: #ffffff;
-    --text: #000000;
-    --text-muted: #8e8e93;
-    --primary: #007aff;
-    --visited: #5856d6;
-    --border: #e5e5ea;
-    --badge-bg: #e5e5ea;
-    --badge-text: #333333;
-    --hot: #ff3b30;
-    --interest: #ff9500;
-    --skeleton: #e5e5ea;
-    --danger: #ff3b30;
+    --text: #16171c;
+    --text-muted: #6b6d76;
+    --primary: #2f5fda;
+    --visited: #6d59c9;
+    --border: #e3e4e9;
+    --badge-bg: #eceef2;
+    --badge-text: #45474f;
+    --hot: #c53030;
+    --interest: #b45309;
+    --skeleton: #eceef2;
+    --danger: #c53030;
+
+    --radius-xs: 4px;
+    --radius-sm: 8px;
+    --radius-md: 10px;
 }
 @media (prefers-color-scheme: dark) {
     :root {
-        --bg: #000000;
-        --card-bg: #1c1c1e;
-        --text: #ffffff;
-        --text-muted: #8e8e93;
-        --primary: #0a84ff;
-        --visited: #a5a3f0;
-        --border: #2c2c2e;
-        --badge-bg: #2c2c2e;
-        --badge-text: #d1d1d6;
-        --hot: #ff453a;
-        --interest: #ff9f0a;
-        --skeleton: #2c2c2e;
-        --danger: #ff453a;
+        --bg: #0c0d10;
+        --card-bg: #18191e;
+        --text: #f3f3f5;
+        --text-muted: #93949c;
+        --primary: #6690ff;
+        --visited: #a99bf0;
+        --border: #2a2b32;
+        --badge-bg: #212228;
+        --badge-text: #c7c8d0;
+        --hot: #f2555c;
+        --interest: #e2963a;
+        --skeleton: #212228;
+        --danger: #f2555c;
     }
 }
 
@@ -36,6 +40,7 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     margin: 0; padding: 0; background: var(--bg); color: var(--text); overflow: hidden;
 }
+*:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ヘッダー（タブバー＋設定ボタン） */
 .topbar {
@@ -51,16 +56,19 @@ body {
 .tab-bar::-webkit-scrollbar { display: none; }
 .tab {
     padding: 12px 16px; cursor: pointer; color: var(--text-muted);
-    font-size: 15px; font-weight: bold; border-bottom: 3px solid transparent;
-    transition: color 0.2s; flex-shrink: 0; background: none; border-left: 0;
-    border-right: 0; border-top: 0; font-family: inherit;
+    font-size: 14px; font-weight: 600; border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s; flex-shrink: 0; background: none;
+    border-left: 0; border-right: 0; border-top: 0; font-family: inherit;
 }
+.tab:hover { color: var(--text); }
 .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
 .gear {
     flex-shrink: 0; border: 0; background: var(--card-bg); color: var(--text-muted);
-    font-size: 15px; font-weight: 700; padding: 0 14px; cursor: pointer;
-    box-shadow: -8px 0 8px -8px rgba(0,0,0,0.15); font-family: inherit;
+    font-size: 14px; font-weight: 600; padding: 0 14px; cursor: pointer;
+    box-shadow: -8px 0 8px -8px rgba(0,0,0,0.12); font-family: inherit;
+    transition: color 0.15s;
 }
+.gear:hover { color: var(--text); }
 
 /* スワイプエリア */
 .swipe-container {
@@ -77,17 +85,19 @@ body {
 
 /* セクション見出し */
 .section-title {
-    font-size: 13px; font-weight: 700; color: var(--text-muted);
-    margin: 18px 4px 8px; letter-spacing: 0.04em;
+    font-size: 12px; font-weight: 600; color: var(--text-muted);
+    margin: 18px 4px 8px; letter-spacing: 0.03em; text-transform: uppercase;
 }
 .swipe-item > .section-title:first-child { margin-top: 0; }
 
 /* 記事カード */
 .article {
-    background: var(--card-bg); border-radius: 12px; padding: 15px;
-    margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 15px; margin-bottom: 10px;
     display: block; text-decoration: none; color: inherit;
+    transition: border-color 0.15s;
 }
+.article:hover { border-color: var(--text-muted); }
 .article .title {
     color: var(--text); font-size: 15px; line-height: 1.4;
     font-weight: 500; margin-bottom: 8px;
@@ -98,7 +108,7 @@ body {
 .article.medium .body { display: flex; gap: 12px; align-items: flex-start; }
 .article.medium .thumb {
     width: 88px; height: 88px; flex-shrink: 0; object-fit: cover;
-    border-radius: 8px; background: var(--skeleton);
+    border-radius: var(--radius-sm); background: var(--skeleton);
 }
 .article.medium .text { flex: 1; min-width: 0; }
 
@@ -106,8 +116,8 @@ body {
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     font-size: 11px; color: var(--text-muted);
 }
-.site-badge { background: var(--badge-bg); padding: 3px 6px; border-radius: 4px; color: var(--badge-text); }
-.badge { padding: 3px 6px; border-radius: 4px; font-weight: 700; }
+.site-badge { background: var(--badge-bg); padding: 3px 6px; border-radius: var(--radius-xs); color: var(--badge-text); }
+.badge { padding: 3px 6px; border-radius: var(--radius-xs); font-weight: 600; }
 .badge.hot { color: #fff; background: var(--hot); }
 .badge.new { color: var(--primary); border: 1px solid var(--primary); }
 .badge.interest { color: #fff; background: var(--interest); }
@@ -128,18 +138,13 @@ body {
     display: flex; align-items: center; justify-content: space-between;
     margin-bottom: 4px;
 }
-.sheet-head h1 { font-size: 20px; margin: 0; }
-.sheet-head .close {
-    border: 0; background: var(--primary); color: #fff; font-size: 15px;
-    font-weight: 700; padding: 8px 18px; border-radius: 999px; cursor: pointer;
-    font-family: inherit;
-}
+.sheet-head h1 { font-size: 19px; font-weight: 600; margin: 0; }
 .sheet h2 {
-    font-size: 13px; color: var(--text-muted); margin: 26px 4px 8px;
-    letter-spacing: 0.04em; font-weight: 700;
+    font-size: 12px; color: var(--text-muted); margin: 26px 4px 8px;
+    letter-spacing: 0.03em; font-weight: 600; text-transform: uppercase;
 }
 .sheet .hint { font-size: 12px; color: var(--text-muted); margin: 0 4px 8px; line-height: 1.6; }
-.group { background: var(--card-bg); border-radius: 12px; overflow: hidden; }
+.group { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
 .row {
     display: flex; align-items: center; gap: 10px; padding: 12px 14px;
     border-bottom: 1px solid var(--border);
@@ -150,29 +155,36 @@ body {
 .row .desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.5; }
 .row.dim .name { color: var(--text-muted); }
 .row input[type="checkbox"] { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--primary); }
+
+/* プライマリボタン（設定シートの完了・追加） */
+.sheet-head .close, .field button {
+    border: 0; background: var(--primary); color: #fff; font-weight: 600;
+    border-radius: var(--radius-sm); cursor: pointer; font-size: 14px;
+    font-family: inherit; transition: filter 0.15s;
+}
+.sheet-head .close:hover, .field button:hover { filter: brightness(1.08); }
+.sheet-head .close { padding: 8px 18px; }
+.field button { padding: 9px 16px; }
+
 .iconbtn {
     border: 1px solid var(--border); background: var(--card-bg); color: var(--text);
-    border-radius: 8px; width: 32px; height: 32px; font-size: 14px; cursor: pointer;
-    flex-shrink: 0; font-family: inherit;
+    border-radius: var(--radius-sm); width: 32px; height: 32px; font-size: 14px; cursor: pointer;
+    flex-shrink: 0; font-family: inherit; transition: border-color 0.15s;
 }
+.iconbtn:hover:not(:disabled) { border-color: var(--text-muted); }
 .iconbtn:disabled { opacity: 0.3; }
 .iconbtn.danger { color: var(--danger); }
 .field { display: flex; gap: 8px; padding: 12px 14px; flex-wrap: wrap; }
 .field input[type="text"], .field select {
     flex: 1; min-width: 120px; font-size: 16px; padding: 9px 10px; font-family: inherit;
-    border: 1px solid var(--border); border-radius: 8px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
     background: var(--bg); color: var(--text);
-}
-.field button {
-    border: 0; background: var(--primary); color: #fff; font-weight: 700;
-    padding: 9px 16px; border-radius: 8px; cursor: pointer; font-size: 15px;
-    font-family: inherit;
 }
 .chiprow { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; }
 .chip {
     display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
     background: var(--badge-bg); color: var(--badge-text);
-    padding: 6px 10px; border-radius: 999px;
+    padding: 6px 10px; border-radius: var(--radius-sm);
 }
 .chip button {
     border: 0; background: none; color: var(--text-muted); cursor: pointer;
