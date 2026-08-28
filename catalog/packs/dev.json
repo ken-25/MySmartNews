@@ -5,7 +5,7 @@
         {"word": "設計", "weight": 0.6}
     ],
     "sources": [
-        {"id": "hatena-it-dev", "name": "はてブ テクノロジー", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/it.rss"},
+        {"id": "hatena-it-dev", "tier": "social", "name": "はてブ テクノロジー", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/it.rss"},
         {"id": "publickey-dev", "name": "Publickey", "type": "rss", "url": "https://www.publickey1.jp/atom.xml"},
         {"id": "q-oss", "name": "OSS/開発ツール", "type": "query", "query": "オープンソース OR GitHub OR 開発ツール"},
         {"id": "q-cloud", "name": "クラウド", "type": "query", "query": "AWS OR Azure OR Google Cloud 障害 OR 新機能"}

@@ -10,6 +10,6 @@
         {"id": "ascii-all", "name": "ASCII.jp（総合）", "type": "rss", "url": "https://ascii.jp/rss.xml"},
         {"id": "impress-watch", "name": "Impress Watch", "type": "rss", "url": "https://www.watch.impress.co.jp/data/rss/1.0/ipw/feed.rdf"},
         {"id": "publickey", "name": "Publickey", "type": "rss", "url": "https://www.publickey1.jp/atom.xml"},
-        {"id": "gnews-technology", "name": "Googleニュース テクノロジー", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja"}
+        {"id": "gnews-technology", "tier": "media", "name": "Googleニュース テクノロジー", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja"}
     ]
 }

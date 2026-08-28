@@ -50,6 +50,31 @@ def run(page):
     check(len(set(top_sites)) >= 2,
           f'上位に複数サイトが混ざっている ({sorted(set(top_sites))})')
 
+    # --- TOPは分類せずに混ぜる ---
+    check(page.locator('.section-title').count() == 0,
+          'TOPがセクション見出しで分類されていない')
+    lanes = page.eval_on_selector_all(
+        '#tab-top .article',
+        "els => els.map(e => { const b = e.querySelector('.badge.lane');"
+        " return b ? b.className.replace('badge lane ', '') : 'new'; })")
+    check(len(set(lanes[:12])) >= 2,
+          f'種類の違う記事が混ざって並んでいる ({",".join(lanes[:12])})')
+
+    # --- 下まで読むと継ぎ足される ---
+    before_scroll = len(lanes)
+    for _ in range(12):
+        page.eval_on_selector('#tab-top', 'e => e.scrollTo(0, e.scrollHeight)')
+        page.wait_for_timeout(250)
+    grown = page.locator('#tab-top .article').count()
+    check(grown > before_scroll,
+          f'スクロールで記事が継ぎ足される ({before_scroll} → {grown}件)')
+    links = page.eval_on_selector_all('#tab-top .article', 'els => els.map(e => e.href)')
+    check(len(links) == len(set(links)), '継ぎ足しても記事が重複しない')
+    seen = page.evaluate(
+        "Object.keys(JSON.parse(localStorage.getItem('msn.v2')).seen).length")
+    check(seen >= before_scroll, f'表示した記事が既読として記録されている ({seen}件)')
+    page.eval_on_selector('#tab-top', 'e => e.scrollTo(0, 0)')
+
     # --- カテゴリを足すとタブが増える ---
     before = len(tabs)
     page.click('#open-settings')

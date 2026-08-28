@@ -3,8 +3,8 @@
 catalog/ のカテゴリパック定義に従って記事を収集し、dist/ に静的な配信物を書き出す。
 
 このスクリプトは**並び順を決めない**。出すのは誰にとっても同じ客観的な信号
-（公開時刻・初回発見時刻・はてなブックマーク数とその増分）だけで、
-「どれを上に出すか」はブラウザ側が各ユーザーの設定で決める。
+（公開時刻・初回発見時刻・はてなブックマーク数とその増分・何媒体が報じたか・
+ソースの性質）だけで、「どれを上に出すか」はブラウザ側が各ユーザーの設定で決める。
 こうしておくと、配信物は1つのまま何人が何通りの趣向で使っても成立する。
 
 data/state.json にビルド間で引き継ぐ状態を保存する。DBの代わりだが、
@@ -48,7 +48,26 @@ HATENA_MAX_URLS = 50       # はてブ件数APIの1リクエストあたり上�
 HATENA_MAX_QUERY_BYTES = 3000  # 同、クエリ文字列の長さの上限（414対策）
 MIN_SCRAPED_TITLE_LEN = 8  # スクレイピングで拾うタイトルの最小文字数
 PER_SOURCE_LIMIT = 30      # 1ソースから取り込む最大件数
-PACK_LIMIT = 120           # 1パックの配信件数
+PACK_LIMIT = 200           # 1パックの配信件数（無限スクロールの在庫になる）
+
+# 話題のまとめ方。まとめすぎると別のニュースが消えるので保守的に振ってある。
+CLUSTER_MIN_LEN = 6        # これより短いタイトルは近似判定に使わない
+CLUSTER_MIN_SHARED = 4     # 共有する文字バイグラム数の下限
+# 短い見出しは1語違うだけで別のニュースになる（「首相が訪米へ」と「訪中へ」）。
+# 逆に長い見出しは、各社が言い換えても十分な量が一致する。しきい値を分ける。
+CLUSTER_SHORT_BIGRAMS = 10
+CLUSTER_SIMILARITY_SHORT = 0.62
+CLUSTER_SIMILARITY = 0.44
+CLUSTER_MAX_POSTINGS = 400  # ありふれたバイグラムは候補の絞り込みに使わない
+
+# ソースの性質。「重要度」と「話題度」を混ぜないために付ける客観的なラベルで、
+# どれをどれだけ重んじるかを決めるのはブラウザ側。
+#   wire   … 通信社・公共放送。速報の一次情報
+#   media  … 商業メディア。編集を経た記事
+#   search … 検索フィード経由。玉石混交
+#   social … ソーシャルブックマークのランキング経由。話題ではあるが重要とは限らない
+VALID_TIERS = ('wire', 'media', 'search', 'social')
+DEFAULT_TIER = {'rss': 'media', 'html': 'media', 'query': 'search'}
 
 # リンクがこのホストのものは実記事URLではなくリダイレクトURLなので、
 # 実記事に付いたブックマーク数とは結びつかない。件数を問い合わせない。
@@ -105,6 +124,12 @@ def is_redirect_link(url):
         return False
 
 
+def source_tier(source):
+    """ソースの性質を返す。catalog が明示していなければ type から決める。"""
+    tier = source.get('tier')
+    return tier if tier in VALID_TIERS else DEFAULT_TIER.get(source['type'], 'media')
+
+
 def cluster_id(title):
     """同じ話題を各社が配信したときにまとめるためのキー。
 
@@ -114,6 +139,87 @@ def cluster_id(title):
     folded = unicodedata.normalize('NFKC', title).lower()
     normalized = CLUSTER_KEEP_RE.sub('', folded)
     return hashlib.sha1(normalized.encode('utf-8')).hexdigest()[:12]
+
+
+def title_bigrams(title):
+    """タイトルを文字バイグラムの集合にする。話題の近さを測るための素材。"""
+    folded = unicodedata.normalize('NFKC', title).lower()
+    normalized = CLUSTER_KEEP_RE.sub('', folded)
+    if len(normalized) < CLUSTER_MIN_LEN:
+        return set()
+    return {normalized[i:i + 2] for i in range(len(normalized) - 1)}
+
+
+def unify_clusters(articles):
+    """見出しが違っても同じ話題なら同じクラスタキーにまとめる。
+
+    「その話題を何媒体が報じたか」を数えるための下ごしらえ。完全一致ハッシュの
+    ままだと各社が独自の見出しを付けた時点で別の話題として数えてしまい、
+    **大きなニュースほど多くの媒体が同時に報じる**という一番強い信号が使えない。
+    はてなブックマーク数が「話題度」しか測れないのに対して、この信号は
+    「誰もが知るべきニュースか」に直接効く。
+
+    形態素解析器は入れない（依存を増やしたくない）。文字バイグラムの Jaccard
+    係数で近似する。まとめすぎると別のニュースが一覧から消えてしまうので、
+    共有バイグラム数と係数の両方に下限を置いた保守的な設定にしてある。
+    """
+    postings = {}   # バイグラム -> [代表記事の添字]
+    leaders = []    # [バイグラム集合, クラスタキー, まとめた媒体名の集合]
+    merged = 0
+    for article in articles:
+        grams = title_bigrams(article['title'])
+        if not grams:
+            continue
+
+        # 共有バイグラム数で候補を絞ってから Jaccard を測る（総当たりを避ける）
+        shared = {}
+        for gram in grams:
+            bucket = postings.get(gram)
+            if not bucket or len(bucket) > CLUSTER_MAX_POSTINGS:
+                continue
+            for pos in bucket:
+                shared[pos] = shared.get(pos, 0) + 1
+
+        best, best_score = None, 0.0
+        for pos, count in shared.items():
+            if count < CLUSTER_MIN_SHARED:
+                continue
+            # 1つの話題が同じ媒体の記事を2件以上飲み込まないようにする。
+            # 数えたいのは「何媒体が報じたか」なので同じ媒体の2件目は無意味だし、
+            # 定型の見出しを量産するサイト（「今日の株価」など）があると、
+            # そのサイトの記事がまるごと1件に潰れて一覧が痩せてしまう。
+            if article['site_name'] in leaders[pos][2]:
+                continue
+            other = leaders[pos][0]
+            similarity = count / float(len(grams) + len(other) - count)
+            floor = (CLUSTER_SIMILARITY_SHORT
+                     if min(len(grams), len(other)) <= CLUSTER_SHORT_BIGRAMS
+                     else CLUSTER_SIMILARITY)
+            if similarity >= floor and similarity > best_score:
+                best, best_score = pos, similarity
+
+        if best is None:
+            leaders.append([grams, article['cluster'], {article['site_name']}])
+            index = len(leaders) - 1
+            for gram in grams:
+                postings.setdefault(gram, []).append(index)
+        else:
+            article['cluster'] = leaders[best][1]
+            leaders[best][2].add(article['site_name'])
+            merged += 1
+    print(f"話題のまとめ: {len(leaders)} クラスタ / {merged} 件を統合")
+
+
+def cluster_reach(articles):
+    """クラスタごとに「何媒体が報じたか」を数える。
+
+    同じ媒体が複数の記事を出しても1と数える。個人ブログの記事は他社が
+    追随しないので必ず1のままで、通信社が流した大きなニュースだけが伸びる。
+    """
+    sites = {}
+    for article in articles:
+        sites.setdefault(article['cluster'], set()).add(article['site_name'])
+    return {key: len(names) for key, names in sites.items()}
 
 
 def entry_datetime(entry):
@@ -189,6 +295,7 @@ def make_article(source, title, link, published_at, image=None, hatena=None,
         "link": link,
         "url_key": normalize_url(link),
         "cluster": cluster_id(title),
+        "tier": source_tier(source),
         "published_at": published_at,
         "image": image,
         "hatena": hatena,
@@ -425,6 +532,7 @@ def collect(packs, state, now):
             key = fetch_key(source)
             if key in cache:
                 articles = [dict(a, source_id=source['id'],
+                                 tier=source_tier(source),
                                  site_name=(a['site_name'] if a['named_by_feed']
                                             else source['name']))
                             for a in cache[key]]
@@ -453,6 +561,9 @@ def serialize(article):
         "site": article['site_name'],
         "source": article['source_id'],
         "cluster": article['cluster'],
+        "tier": article['tier'],
+        # この話題を報じた媒体数。1なら誰も追随していない話題（個人ブログなど）。
+        "reach": article['reach'],
         "published_at": to_iso(article['effective_at']),
         "dated": bool(article['published_at']),
         "first_seen": to_iso(article['first_seen']),
@@ -532,6 +643,12 @@ def main():
         print(f"  はてブ件数の問い合わせ対象外: {skipped}件（リダイレクトURL）")
     counts = fetch_hatena_counts(need_counts)
 
+    # 見出しの違う同じ話題をまとめてから、媒体数を数える。パックをまたいで
+    # 数えたいので、ここ（全パック分が揃った場所）でしかできない。
+    ordered = sorted(unique.values(), key=lambda a: a['url_key'])
+    unify_clusters(ordered)
+    reach = cluster_reach(ordered)
+
     stored = state['articles']
     signals = {}
     for key, article in unique.items():
@@ -547,6 +664,8 @@ def main():
             "hatena_delta": hatena - int(meta.get('hatena') or 0),
             "first_seen": first_seen,
             "effective_at": article['published_at'] or first_seen,
+            "cluster": article['cluster'],
+            "reach": reach.get(article['cluster'], 1),
         }
         stored[key] = {
             "first_seen": to_iso(first_seen),
