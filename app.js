@@ -401,9 +401,8 @@
         return img;
     }
 
-    /* size: 'hero' | 'medium' | 'compact' */
-    function buildCard(article, size, now) {
-        var card = el('a', 'article ' + size);
+    function buildCard(article, now) {
+        var card = el('a', 'article' + (article.image ? ' medium' : ''));
         card.href = safeLink(article.link);
         card.target = '_blank';
         card.rel = 'noopener';
@@ -414,14 +413,7 @@
         });
 
         var body = el('div', 'body');
-        if (size === 'hero') {
-            if (article.image) { card.appendChild(buildThumb(article.image)); }
-            body.appendChild(el('div', 'title', article.title));
-            body.appendChild(buildMeta(article, now));
-            card.appendChild(body);
-            return card;
-        }
-        if (size === 'medium' && article.image) {
+        if (article.image) {
             body.appendChild(buildThumb(article.image));
             var text = el('div', 'text');
             text.appendChild(el('div', 'title', article.title));
@@ -436,17 +428,11 @@
         return card;
     }
 
-    function appendSection(parent, title, articles, startWithHero, now) {
+    function appendSection(parent, title, articles, now) {
         if (!articles.length) { return; }
         if (title) { parent.appendChild(el('div', 'section-title', title)); }
-        articles.forEach(function (article, index) {
-            var size = 'compact';
-            if (startWithHero && index === 0 && article.image) {
-                size = 'hero';
-            } else if (article.image && index < 5) {
-                size = 'medium';
-            }
-            parent.appendChild(buildCard(article, size, now));
+        articles.forEach(function (article) {
+            parent.appendChild(buildCard(article, now));
         });
     }
 
@@ -472,9 +458,9 @@
         var forYou = take(function (a) { return a.matched && a.matched.length; }, 8);
         var rest = take(function () { return true; }, articles.length);
 
-        appendSection(pane, hot.length ? '🔥 話題' : null, hot, true, now);
-        appendSection(pane, '⭐ あなた向け', forYou, hot.length === 0, now);
-        appendSection(pane, (forYou.length || hot.length) ? '🆕 新着' : null, rest, false, now);
+        appendSection(pane, hot.length ? '🔥 話題' : null, hot, now);
+        appendSection(pane, '⭐ あなた向け', forYou, now);
+        appendSection(pane, (forYou.length || hot.length) ? '🆕 新着' : null, rest, now);
     }
 
     function emptyPane(message) {
@@ -491,7 +477,7 @@
         } else if (tab.id === 'top') {
             renderTop(pane, tab.articles, now);
         } else {
-            appendSection(pane, null, tab.articles, true, now);
+            appendSection(pane, null, tab.articles, now);
         }
         pane.appendChild(el('div', 'footer',
             '最終更新: ' + ((catalog && catalog.updated_label) || '')));

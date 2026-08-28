@@ -108,13 +108,7 @@
         }
         .article:visited .title { color: var(--visited); }
 
-        /* ヒーローカード（TOPの1件目） */
-        .article.hero { padding: 0; overflow: hidden; }
-        .article.hero .thumb { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: var(--skeleton); }
-        .article.hero .body { padding: 15px; }
-        .article.hero .title { font-size: 19px; font-weight: 700; line-height: 1.35; }
-
-        /* 中カード（サムネイル横並び） */
+        /* サムネイル付きカード（画像がある記事） */
         .article.medium .body { display: flex; gap: 12px; align-items: flex-start; }
         .article.medium .thumb {
             width: 88px; height: 88px; flex-shrink: 0; object-fit: cover;
