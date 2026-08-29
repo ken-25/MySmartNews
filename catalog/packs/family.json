@@ -1,0 +1,12 @@
+{
+    "id": "family",
+    "suggested_interests": [
+        {"word": "子育て", "weight": 0.8},
+        {"word": "保育", "weight": 0.6}
+    ],
+    "sources": [
+        {"id": "q-parenting", "name": "子育て", "type": "query", "query": "子育て OR 育児 OR 保育園 OR 産休"},
+        {"id": "q-education", "name": "教育", "type": "query", "query": "教育 OR 学校 OR 大学入試 OR 学費"},
+        {"id": "q-manabi", "name": "学び直し", "type": "query", "query": "生涯学習 OR 資格取得 OR 学び直し"}
+    ]
+}

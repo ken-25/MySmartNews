@@ -2,7 +2,10 @@
     "id": "sports",
     "suggested_interests": [],
     "sources": [
+        {"id": "yahoo-sports", "tier": "media", "name": "Yahoo!ニュース スポーツ", "type": "rss", "url": "https://news.yahoo.co.jp/rss/topics/sports.xml"},
+        {"id": "nhk-sports", "tier": "wire", "name": "NHKニュース スポーツ", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat7.xml"},
         {"id": "gnews-sports", "tier": "media", "name": "Googleニュース スポーツ", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/SPORTS?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "nhk-sports", "tier": "wire", "name": "NHKニュース スポーツ", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat7.xml"}
+        {"id": "q-baseball", "name": "野球", "type": "query", "query": "プロ野球 OR メジャーリーグ OR 高校野球"},
+        {"id": "q-soccer", "name": "サッカー", "type": "query", "query": "Jリーグ OR サッカー日本代表 OR 欧州サッカー"}
     ]
 }

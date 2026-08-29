@@ -1,0 +1,12 @@
+{
+    "id": "food",
+    "suggested_interests": [
+        {"word": "レシピ", "weight": 0.7},
+        {"word": "新商品", "weight": 0.5}
+    ],
+    "sources": [
+        {"id": "q-gourmet", "name": "グルメ", "type": "query", "query": "グルメ OR 名店 OR 食べ歩き OR スイーツ"},
+        {"id": "q-recipe", "name": "レシピ", "type": "query", "query": "レシピ OR 作り置き OR 簡単 料理"},
+        {"id": "q-newfood", "name": "新商品", "type": "query", "query": "コンビニ 新商品 OR 冷凍食品 OR 期間限定 発売"}
+    ]
+}

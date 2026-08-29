@@ -1,0 +1,12 @@
+{
+    "id": "book",
+    "suggested_interests": [
+        {"word": "書評", "weight": 0.7},
+        {"word": "新刊", "weight": 0.6}
+    ],
+    "sources": [
+        {"id": "hatena-knowledge-book", "tier": "social", "name": "はてブ 学び", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/knowledge.rss"},
+        {"id": "q-book", "name": "新刊・書評", "type": "query", "query": "新刊 OR 書評 OR 本屋大賞 OR 芥川賞"},
+        {"id": "q-kyoyo", "name": "教養", "type": "query", "query": "歴史 発見 OR 哲学 OR 文化財"}
+    ]
+}

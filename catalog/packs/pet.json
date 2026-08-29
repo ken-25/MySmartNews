@@ -1,0 +1,11 @@
+{
+    "id": "pet",
+    "suggested_interests": [
+        {"word": "保護猫", "weight": 0.8},
+        {"word": "ペット", "weight": 0.7}
+    ],
+    "sources": [
+        {"id": "q-pet", "name": "ペット", "type": "query", "query": "ペット OR 保護猫 OR 犬 しつけ"},
+        {"id": "q-zoo", "name": "動物園・生きもの", "type": "query", "query": "動物園 OR 水族館 OR 野生動物 OR クマ 出没"}
+    ]
+}

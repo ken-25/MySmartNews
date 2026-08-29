@@ -1,0 +1,13 @@
+{
+    "id": "car",
+    "suggested_interests": [
+        {"word": "電気自動車", "weight": 0.8},
+        {"word": "自動運転", "weight": 0.8}
+    ],
+    "sources": [
+        {"id": "response", "name": "レスポンス", "type": "rss", "url": "https://response.jp/rss/index.rdf"},
+        {"id": "q-newcar", "name": "新型車", "type": "query", "query": "新型車 OR フルモデルチェンジ OR 試乗"},
+        {"id": "q-ev", "name": "EV・自動運転", "type": "query", "query": "電気自動車 OR EV 充電 OR 自動運転"},
+        {"id": "q-bike", "name": "バイク", "type": "query", "query": "バイク 新型 OR 二輪車"}
+    ]
+}

@@ -1,0 +1,13 @@
+{
+    "id": "travel",
+    "suggested_interests": [
+        {"word": "旅行", "weight": 0.7},
+        {"word": "鉄道", "weight": 0.6}
+    ],
+    "sources": [
+        {"id": "q-travel", "name": "旅行・おでかけ", "type": "query", "query": "旅行 OR 観光 OR 温泉 OR 絶景"},
+        {"id": "q-train", "name": "鉄道", "type": "query", "query": "鉄道 OR 新幹線 OR ローカル線"},
+        {"id": "q-air", "name": "空の旅", "type": "query", "query": "航空 OR LCC OR 空港 OR マイル"},
+        {"id": "q-odekake", "name": "おでかけ", "type": "query", "query": "テーマパーク OR 水族館 OR 花火大会 OR イベント 開催"}
+    ]
+}

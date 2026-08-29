@@ -1,17 +1,44 @@
 <!DOCTYPE html>
+<!-- 二重波かっこのプレースホルダは build.py が配信時に埋める。ブラウザで直接
+     開くと素のまま残るので、表示だけ直したいときも python build.py を通すこと。 -->
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MySmartNews｜読みたいカテゴリだけのニュースリーダー</title>
+    <meta name="description" content="読みたいカテゴリを選ぶだけのニュースリーダー。総合・経済・IT・暮らし・エンタメ・スポーツなど{{PACK_COUNT}}カテゴリの記事を1本のタイムラインに混ぜ、読むほどあなた好みに並び替えます。登録不要、広告なし、設定は端末の中だけ。">
+    <link rel="canonical" href="{{SITE_URL}}/">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="MySmartNews">
+    <meta property="og:locale" content="ja_JP">
+    <meta property="og:url" content="{{SITE_URL}}/">
+    <meta property="og:title" content="MySmartNews｜読みたいカテゴリだけのニュースリーダー">
+    <meta property="og:description" content="読みたいカテゴリを選ぶだけ。{{PACK_COUNT}}カテゴリの記事を1本のタイムラインに混ぜ、読むほどあなた好みに並び替えます。登録不要、広告なし、設定は端末の中だけ。">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="MySmartNews｜読みたいカテゴリだけのニュースリーダー">
+    <meta name="twitter:description" content="読みたいカテゴリを選ぶだけ。読むほどあなた好みに並び替わるニュースリーダー。登録不要、広告なし。">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="MyNews">
-    <meta name="description" content="カテゴリを選ぶだけで自分好みに並ぶニュースリーダー。設定は端末の中だけに保存されます。">
+    <meta name="apple-mobile-web-app-title" content="MySmartNews">
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="style.css">
-    <title>MyNews</title>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "MySmartNews",
+        "url": "{{SITE_URL}}/",
+        "applicationCategory": "NewsApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "ja",
+        "isAccessibleForFree": true,
+        "description": "読みたいカテゴリを選ぶだけのニュースリーダー。読むほどあなた好みに並び替わります。登録不要、広告なし、設定は端末の中だけ。",
+        "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}
+    }
+    </script>
 </head>
 <body>
     <header class="topbar">
@@ -19,7 +46,31 @@
         <button class="gear" id="open-settings">設定</button>
     </header>
     <div class="swipe-container" id="swipe-container">
-        <div class="swipe-item"><div class="status" id="status">読み込み中…</div></div>
+        <div class="swipe-item">
+            <!-- 初めて開いた人（＝設定がまだ無い訪問者。クローラもここに入る）が
+                 最初に読む説明。2回目以降は app.js が起動時に hidden にする。 -->
+            <section class="intro" id="intro">
+                <h1>MySmartNews</h1>
+                <p class="intro-lead">読みたいカテゴリを選ぶだけのニュースリーダーです。<br>
+                    選んだカテゴリの記事を1本のタイムラインに混ぜて、読むほどあなた好みに並び替えます。</p>
+                <ul class="intro-points">
+                    <li><b>カテゴリを選ぶだけ</b>登録もログインもありません。選んだカテゴリがそのままタブになります。</li>
+                    <li><b>大きなニュースを落とさない</b>何媒体が同じ話題を報じたかで重要度を測るので、目立つだけの記事に埋もれません。</li>
+                    <li><b>読むほど自分好みに</b>開いた記事から話題を覚えて、次から近い記事を上に出します。</li>
+                    <li><b>設定は端末の中だけ</b>広告もトラッキングもなし。選んだ内容がサーバーに送られることはありません。</li>
+                </ul>
+                {{PACK_LIST}}
+                <p class="intro-note">
+                    カテゴリやニュースソースの一覧は
+                    <a href="https://github.com/ken-25/MySmartNews">GitHub</a> で公開しています。
+                    増やしたいカテゴリはプルリクエストで追加できます。
+                </p>
+                <noscript>
+                    <p class="intro-note">記事の読み込みには JavaScript が必要です。有効にして再読み込みしてください。</p>
+                </noscript>
+            </section>
+            <div class="status" id="status">読み込み中…</div>
+        </div>
     </div>
     <div class="sheet" id="settings" hidden>
         <div class="sheet-head">
