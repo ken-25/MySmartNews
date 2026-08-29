@@ -1,0 +1,13 @@
+{
+    "id": "anime",
+    "suggested_interests": [
+        {"word": "アニメ", "weight": 0.8},
+        {"word": "漫画", "weight": 0.7}
+    ],
+    "sources": [
+        {"id": "animeanime", "name": "アニメ！アニメ！", "type": "rss", "url": "https://animeanime.jp/rss/index.rdf"},
+        {"id": "natalie-comic", "name": "コミックナタリー", "type": "rss", "url": "https://natalie.mu/comic/feed/news"},
+        {"id": "q-anime", "name": "アニメ", "type": "query", "query": "アニメ 放送 OR 劇場版 OR 制作決定"},
+        {"id": "q-manga", "name": "マンガ", "type": "query", "query": "漫画 連載 OR 単行本 OR 実写化"}
+    ]
+}

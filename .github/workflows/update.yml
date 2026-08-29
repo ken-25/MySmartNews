@@ -63,7 +63,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # canonical / OGP / sitemap.xml に入る絶対URL。vars.SITE_URL があれば
+      # それを使い、無ければ配信先から組み立てる（Cloudflare Pages なら
+      # https://<プロジェクト名>.pages.dev、GitHub Pages なら
+      # https://<オーナー>.github.io/<リポジトリ名>）。
       - name: Build
+        env:
+          SITE_URL: >-
+            ${{ vars.SITE_URL
+                || (steps.target.outputs.name == 'cloudflare'
+                    && format('https://{0}.pages.dev', vars.CLOUDFLARE_PROJECT_NAME || 'mysmartnews')
+                    || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name)) }}
         run: python build.py
 
       - name: Save build state

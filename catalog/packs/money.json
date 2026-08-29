@@ -1,0 +1,15 @@
+{
+    "id": "money",
+    "suggested_interests": [
+        {"word": "NISA", "weight": 1.0},
+        {"word": "資産運用", "weight": 0.9},
+        {"word": "節約", "weight": 0.7}
+    ],
+    "sources": [
+        {"id": "q-kakei", "name": "家計・節約", "type": "query", "query": "家計 OR 節約術 OR ふるさと納税 OR 値上げ"},
+        {"id": "q-invest", "name": "投資", "type": "query", "query": "NISA OR iDeCo OR 投資信託 OR 株価 見通し"},
+        {"id": "q-seido", "name": "税・年金", "type": "query", "query": "確定申告 OR 年金 制度 OR 補助金 申請"},
+        {"id": "gnews-business-money", "tier": "media", "name": "Googleニュース ビジネス", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "hatena-economics-money", "tier": "social", "name": "はてブ 政治と経済", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/economics.rss"}
+    ]
+}

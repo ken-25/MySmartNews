@@ -1,9 +1,15 @@
 {
     "id": "entertainment",
-    "suggested_interests": [],
+    "suggested_interests": [
+        {"word": "映画", "weight": 0.6},
+        {"word": "ライブ", "weight": 0.5}
+    ],
     "sources": [
+        {"id": "yahoo-entertainment", "tier": "media", "name": "Yahoo!ニュース エンタメ", "type": "rss", "url": "https://news.yahoo.co.jp/rss/topics/entertainment.xml"},
         {"id": "gnews-entertainment", "tier": "media", "name": "Googleニュース エンタメ", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "hatena-fun", "tier": "social", "name": "はてブ おもしろ", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/fun.rss"},
-        {"id": "q-game", "name": "ゲーム", "type": "query", "query": "ゲーム 新作 OR アップデート 配信"}
+        {"id": "natalie-music", "name": "音楽ナタリー", "type": "rss", "url": "https://natalie.mu/music/feed/news"},
+        {"id": "natalie-eiga", "name": "映画ナタリー", "type": "rss", "url": "https://natalie.mu/eiga/feed/news"},
+        {"id": "netlab", "name": "ねとらぼ", "type": "rss", "url": "https://rss.itmedia.co.jp/rss/2.0/netlab.xml"},
+        {"id": "hatena-fun", "tier": "social", "name": "はてブ おもしろ", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/fun.rss"}
     ]
 }

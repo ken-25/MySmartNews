@@ -1,0 +1,11 @@
+{
+    "id": "world",
+    "suggested_interests": [],
+    "sources": [
+        {"id": "yahoo-world", "tier": "media", "name": "Yahoo!ニュース 国際", "type": "rss", "url": "https://news.yahoo.co.jp/rss/topics/world.xml"},
+        {"id": "nhk-world", "tier": "wire", "name": "NHKニュース 国際", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat6.xml"},
+        {"id": "gnews-world", "tier": "media", "name": "Googleニュース 国際", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/WORLD?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "bbc-japanese", "tier": "wire", "name": "BBC News Japan", "type": "rss", "url": "https://feeds.bbci.co.uk/japanese/rss.xml"},
+        {"id": "cnn-japan", "tier": "media", "name": "CNN.co.jp", "type": "rss", "url": "https://feeds.cnn.co.jp/rss/cnn/cnn.rdf"}
+    ]
+}

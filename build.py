@@ -38,6 +38,10 @@ USER_AGENT = 'MySmartNewsBot/2.0 (+https://github.com/ken-25/MySmartNews)'
 # app.js のこの行をビルドIDで置き換えて配信する（設定画面に出す版数）
 APP_BUILD_MARKER = "var APP_BUILD = 'dev';"
 
+# 配信先の絶対URL。canonical・OGP・sitemap に要る。Pages のプロジェクト名を
+# 変えたときは環境変数 SITE_URL で上書きする（末尾のスラッシュは落とす）。
+SITE_URL = os.environ.get('SITE_URL', 'https://mysmartnews.pages.dev').rstrip('/')
+
 # type: "query" が使う検索フィード。{query} にURLエンコード済みの検索式が入る。
 # 別の検索サービスに乗り換えるならここだけ差し替えればよい。
 KEYWORD_SEARCH_FEED = ('https://news.google.com/rss/search'
@@ -591,7 +595,53 @@ def app_build_id():
     return digest.hexdigest()[:7]
 
 
-def copy_static(build):
+def html_escape(text):
+    return (str(text).replace('&', '&amp;').replace('<', '&lt;')
+            .replace('>', '&gt;').replace('"', '&quot;'))
+
+
+def pack_list_html(packs):
+    """初回訪問者に見せるカテゴリ一覧を組み立てる。
+
+    このアプリの中身は起動後に JavaScript が描くので、素のHTMLには
+    「何が読めるサイトなのか」を示す文字が1つも無い。検索エンジンにも
+    JavaScript を切っている人にも同じものが見えるように、カタログから
+    そのままカテゴリ名と説明を書き出しておく。
+    """
+    if not packs:
+        return ''
+    items = ''.join(
+        '\n                        <li><b>{}</b>{}</li>'.format(
+            html_escape(p['name']), html_escape(p.get('description', '')))
+        for p in packs)
+    return ('<h2 class="intro-heading">選べるカテゴリ</h2>'
+            '\n                    <ul class="intro-packs">{}\n                    </ul>'
+            .format(items))
+
+
+def render_index_html(source, packs):
+    """index.html のプレースホルダを配信先の値で埋める。"""
+    return (source
+            .replace('{{SITE_URL}}', SITE_URL)
+            .replace('{{PACK_COUNT}}', str(len(packs)))
+            .replace('{{PACK_LIST}}', pack_list_html(packs)))
+
+
+def write_seo_files(now):
+    """robots.txt と sitemap.xml。配信されるページは実質1枚だけ。"""
+    with open(os.path.join(DIST_DIR, 'robots.txt'), 'w', encoding='utf-8') as f:
+        f.write('User-agent: *\nAllow: /\n\n'
+                f'Sitemap: {SITE_URL}/sitemap.xml\n')
+    with open(os.path.join(DIST_DIR, 'sitemap.xml'), 'w', encoding='utf-8') as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+                f'  <url>\n    <loc>{SITE_URL}/</loc>\n'
+                f'    <lastmod>{now.date().isoformat()}</lastmod>\n'
+                '    <changefreq>hourly</changefreq>\n'
+                '  </url>\n</urlset>\n')
+
+
+def copy_static(build, packs, now):
     for name in STATIC_FILES:
         if not os.path.exists(name):
             continue
@@ -602,10 +652,16 @@ def copy_static(build):
             with open(target, 'w', encoding='utf-8') as f:
                 f.write(source.replace(APP_BUILD_MARKER,
                                        f"var APP_BUILD = '{build}';", 1))
+        elif name == 'index.html':
+            with open(name, 'r', encoding='utf-8') as f:
+                source = f.read()
+            with open(target, 'w', encoding='utf-8') as f:
+                f.write(render_index_html(source, packs))
         else:
             shutil.copy(name, target)
     if os.path.exists('_headers'):
         shutil.copy('_headers', os.path.join(DIST_DIR, '_headers'))
+    write_seo_files(now)
 
 
 def write_dist(packs, per_pack, now):
@@ -647,7 +703,7 @@ def write_dist(packs, per_pack, now):
     with open(os.path.join(DIST_DIR, 'index.json'), 'w', encoding='utf-8') as f:
         json.dump(index, f, ensure_ascii=False, separators=(',', ':'))
 
-    copy_static(build)
+    copy_static(build, index_packs, now)
     total = sum(len(a) for a in per_pack.values())
     print(f"{DIST_DIR}/: {len(index_packs)} パック / 延べ {total} 記事 (build {build})")
 
