@@ -8,6 +8,7 @@
   - 公開日時のない記事に初回発見時刻が割り当てられること
   - 取得に失敗したソースが state から復元されること
   - ソースの性質（tier）が記事に載ること
+  - index.html のプレースホルダが埋まり、robots.txt / sitemap.xml が出ること
   - 見出しの違う同じ話題がまとまり、報じた媒体数（reach）が数えられること
 """
 import email.utils
@@ -208,8 +209,10 @@ def write_catalog():
 def main():
     workdir = tempfile.mkdtemp()
     shutil.copy(os.path.join(REPO_ROOT, 'build.py'), workdir)
-    # ビルドIDの焼き込みを確かめたいので表示側のファイルも持ち込む
+    # ビルドIDの焼き込みと、index.html のプレースホルダ差し込みを確かめたいので
+    # 表示側のファイルも持ち込む
     shutil.copy(os.path.join(REPO_ROOT, 'app.js'), workdir)
+    shutil.copy(os.path.join(REPO_ROOT, 'index.html'), workdir)
     os.chdir(workdir)
     sys.path.insert(0, workdir)
     write_catalog()
@@ -238,6 +241,23 @@ def main():
           'ビルドIDのプレースホルダが残っていない')
     check(index['packs'][0]['suggested_interests'][0]['word'] == 'BIM',
           'パックの推奨キーワードがカタログに載っている')
+
+    with open(os.path.join('dist', 'index.html'), encoding='utf-8') as f:
+        served_html = f.read()
+    check('{{' not in served_html,
+          'index.html のプレースホルダが残っていない')
+    check(f'<link rel="canonical" href="{build.SITE_URL}/">' in served_html,
+          'canonical に配信先の絶対URLが入っている')
+    check(f'{len(index["packs"])}カテゴリ' in served_html,
+          'メタ説明にカテゴリ数が入っている')
+    check('<b>テック</b>' in served_html and '<b>建設</b>' in served_html,
+          'JavaScript なしでも読めるカテゴリ一覧が index.html に入っている')
+    with open(os.path.join('dist', 'robots.txt'), encoding='utf-8') as f:
+        check(f'Sitemap: {build.SITE_URL}/sitemap.xml' in f.read(),
+              'robots.txt が sitemap を指している')
+    with open(os.path.join('dist', 'sitemap.xml'), encoding='utf-8') as f:
+        check(f'<loc>{build.SITE_URL}/</loc>' in f.read(),
+              'sitemap.xml にトップページが載っている')
 
     sample = packs['tech'][0]
     check('score' not in sample and 'time_ago' not in sample,

@@ -1,0 +1,14 @@
+{
+    "id": "game",
+    "suggested_interests": [
+        {"word": "ゲーム", "weight": 0.7},
+        {"word": "インディー", "weight": 0.5}
+    ],
+    "sources": [
+        {"id": "4gamer", "name": "4Gamer.net", "type": "rss", "url": "https://www.4gamer.net/rss/index.xml"},
+        {"id": "famitsu", "name": "ファミ通.com", "type": "rss", "url": "https://www.famitsu.com/rss/fam_all.rdf"},
+        {"id": "automaton", "name": "AUTOMATON", "type": "rss", "url": "https://automaton-media.com/feed/"},
+        {"id": "hatena-game", "tier": "social", "name": "はてブ ゲーム", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/game.rss"},
+        {"id": "q-game", "name": "ゲーム", "type": "query", "query": "ゲーム 新作 OR アップデート 配信"}
+    ]
+}

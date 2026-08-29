@@ -2,80 +2,192 @@
     "version": 2,
     "packs": [
         {
-            "id": "hot",
-            "name": "話題",
-            "description": "はてなブックマークで今伸びている記事。ジャンル横断のランキング。",
+            "id": "top",
+            "name": "総合",
+            "description": "国内外の主要ニュース。まず開くならここ。",
             "order": 1,
             "default": true
         },
         {
-            "id": "top",
-            "name": "総合",
-            "description": "国内外の主要ニュース。",
+            "id": "hot",
+            "name": "話題",
+            "description": "いまネットで多く読まれている記事。ジャンル横断のランキング。",
             "order": 2,
             "default": true
         },
         {
+            "id": "world",
+            "name": "国際",
+            "description": "世界のニュース。海外メディアの日本語版もまとめて。",
+            "order": 3,
+            "default": false
+        },
+        {
+            "id": "politics",
+            "name": "政治",
+            "description": "国会、選挙、行政の動き。",
+            "order": 4,
+            "default": false
+        },
+        {
+            "id": "local",
+            "name": "地域・防災",
+            "description": "各地のニュースと、地震・台風など身を守るための情報。",
+            "order": 5,
+            "default": false
+        },
+        {
+            "id": "business",
+            "name": "経済・ビジネス",
+            "description": "景気、企業、産業の動き。",
+            "order": 6,
+            "default": true
+        },
+        {
+            "id": "money",
+            "name": "マネー・投資",
+            "description": "家計、資産運用、税と社会保険の制度。",
+            "order": 7,
+            "default": false
+        },
+        {
+            "id": "career",
+            "name": "仕事・キャリア",
+            "description": "転職、働き方、職場の悩み。",
+            "order": 8,
+            "default": false
+        },
+        {
             "id": "it",
             "name": "IT・テック",
-            "description": "ITニュース、ガジェット、Web技術。",
-            "order": 3,
+            "description": "ITニュース、ガジェット、Webサービス。",
+            "order": 9,
             "default": true
         },
         {
             "id": "ai",
             "name": "AI",
-            "description": "生成AI・LLM・機械学習の話題。",
-            "order": 4,
-            "default": true
-        },
-        {
-            "id": "business",
-            "name": "ビジネス",
-            "description": "経済、経営、働き方。",
-            "order": 5,
+            "description": "生成AI・LLM・機械学習と、その使いどころ。",
+            "order": 10,
             "default": false
         },
         {
             "id": "dev",
-            "name": "開発者",
-            "description": "プログラミングと開発の実践的な記事。",
-            "order": 6,
+            "name": "開発・プログラミング",
+            "description": "設計、言語、クラウド。つくる人のための実践記事。",
+            "order": 11,
+            "default": false
+        },
+        {
+            "id": "science",
+            "name": "科学・宇宙",
+            "description": "研究成果、宇宙、いきものの不思議。",
+            "order": 12,
+            "default": false
+        },
+        {
+            "id": "health",
+            "name": "健康・医療",
+            "description": "からだと心、医療のニュース。",
+            "order": 13,
+            "default": false
+        },
+        {
+            "id": "life",
+            "name": "暮らし",
+            "description": "毎日の生活の知恵、住まい、家事。",
+            "order": 14,
+            "default": true
+        },
+        {
+            "id": "food",
+            "name": "グルメ・料理",
+            "description": "食べる、つくる、お店の話。",
+            "order": 15,
+            "default": false
+        },
+        {
+            "id": "travel",
+            "name": "旅行・おでかけ",
+            "description": "旅先、鉄道と飛行機、週末の予定。",
+            "order": 16,
+            "default": false
+        },
+        {
+            "id": "family",
+            "name": "子育て・教育",
+            "description": "育児、学校、学び直し。",
+            "order": 17,
+            "default": false
+        },
+        {
+            "id": "entertainment",
+            "name": "エンタメ",
+            "description": "映画、ドラマ、音楽、芸能。",
+            "order": 18,
+            "default": true
+        },
+        {
+            "id": "anime",
+            "name": "アニメ・マンガ",
+            "description": "新作、続報、原作の話題。",
+            "order": 19,
+            "default": false
+        },
+        {
+            "id": "game",
+            "name": "ゲーム",
+            "description": "新作、アップデート、eスポーツ。",
+            "order": 20,
+            "default": false
+        },
+        {
+            "id": "sports",
+            "name": "スポーツ",
+            "description": "野球、サッカー、国内外の試合。",
+            "order": 21,
+            "default": true
+        },
+        {
+            "id": "car",
+            "name": "クルマ・バイク",
+            "description": "新型車、EV、乗りものの技術。",
+            "order": 22,
+            "default": false
+        },
+        {
+            "id": "fashion",
+            "name": "ファッション・美容",
+            "description": "服、コスメ、トレンド。",
+            "order": 23,
+            "default": false
+        },
+        {
+            "id": "pet",
+            "name": "ペット・生きもの",
+            "description": "犬猫、動物園、いきものの話題。",
+            "order": 24,
+            "default": false
+        },
+        {
+            "id": "book",
+            "name": "本・学び",
+            "description": "新刊、書評、知っておきたい教養。",
+            "order": 25,
+            "default": false
+        },
+        {
+            "id": "design",
+            "name": "デザイン・アート",
+            "description": "デザイン、写真、展覧会、ものづくり。",
+            "order": 26,
             "default": false
         },
         {
             "id": "construction",
             "name": "建設・建築",
             "description": "BIM、建設DX、施工管理。専門メディアと業界ブログ。",
-            "order": 7,
-            "default": false
-        },
-        {
-            "id": "science",
-            "name": "科学",
-            "description": "研究、宇宙、生命科学。",
-            "order": 8,
-            "default": false
-        },
-        {
-            "id": "life",
-            "name": "暮らし",
-            "description": "健康、住まい、お金まわり。",
-            "order": 9,
-            "default": false
-        },
-        {
-            "id": "entertainment",
-            "name": "エンタメ",
-            "description": "映画、音楽、ゲーム、カルチャー。",
-            "order": 10,
-            "default": false
-        },
-        {
-            "id": "sports",
-            "name": "スポーツ",
-            "description": "国内外のスポーツニュース。",
-            "order": 11,
+            "order": 27,
             "default": false
         }
     ]

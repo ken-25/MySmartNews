@@ -204,3 +204,69 @@ body {
 }
 .linkbtn.danger { color: var(--danger); }
 .note { font-size: 0.75rem; color: var(--text-muted); margin: 10px 4px 0; line-height: 1.6; }
+
+/* 初回訪問者への説明（index.html に直接書いてある部分）。
+ * 記事が描かれると app.js が丸ごと差し替えるので、見えるのは
+ * 「まだ何も選んでいない人」と、JavaScript を実行しない相手だけ。 */
+.intro {
+    max-width: 640px; margin: 0 auto; padding: 24px 4px 8px;
+}
+.intro[hidden] { display: none; }
+.intro h1 {
+    font-size: 1.5rem; font-weight: 700; margin: 0 0 10px;
+    letter-spacing: -0.01em;
+}
+.intro-lead {
+    font-size: 0.9375rem; line-height: 1.75; color: var(--text);
+    margin: 0 0 20px;
+}
+.intro-points, .intro-packs { list-style: none; margin: 0; padding: 0; }
+.intro-points li {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 8px;
+    font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;
+}
+.intro-points li b {
+    display: block; font-size: 0.9375rem; color: var(--text);
+    font-weight: 600; margin-bottom: 3px;
+}
+.intro-heading {
+    font-size: 0.75rem; color: var(--text-muted); margin: 26px 4px 8px;
+    letter-spacing: 0.03em; font-weight: 600; text-transform: uppercase;
+}
+.intro-packs {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius-md); overflow: hidden;
+}
+.intro-packs li {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-size: 0.75rem; color: var(--text-muted); line-height: 1.5;
+}
+.intro-packs li:last-child { border-bottom: 0; }
+.intro-packs li b {
+    display: block; font-size: 0.875rem; color: var(--text);
+    font-weight: 600; margin-bottom: 2px;
+}
+.intro-note {
+    font-size: 0.75rem; color: var(--text-muted); line-height: 1.7;
+    margin: 16px 4px 0;
+}
+.intro-note a { color: var(--primary); }
+
+/* 設定シートの先頭に出る、初回セットアップ中だけの説明 */
+.welcome { margin-bottom: 6px; }
+.welcome-lead {
+    font-size: 0.875rem; line-height: 1.7; margin: 6px 4px 14px;
+    color: var(--text);
+}
+.welcome-points { list-style: none; margin: 0; padding: 0; }
+.welcome-points li {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--radius-md); padding: 11px 14px; margin-bottom: 8px;
+}
+.welcome-points li b {
+    display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 2px;
+}
+.welcome-points li span {
+    font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;
+}

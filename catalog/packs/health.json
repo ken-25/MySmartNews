@@ -1,0 +1,13 @@
+{
+    "id": "health",
+    "suggested_interests": [
+        {"word": "睡眠", "weight": 0.8},
+        {"word": "予防", "weight": 0.6}
+    ],
+    "sources": [
+        {"id": "gnews-health", "tier": "media", "name": "Googleニュース 健康", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja"},
+        {"id": "nhk-medical", "tier": "wire", "name": "NHKニュース 科学・医療", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat3.xml"},
+        {"id": "q-health", "name": "健康", "type": "query", "query": "健康 OR 睡眠 OR 食生活 改善"},
+        {"id": "q-medical", "name": "医療", "type": "query", "query": "医療 OR 感染症 OR 新薬 承認"}
+    ]
+}

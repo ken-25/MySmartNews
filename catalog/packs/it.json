@@ -1,15 +1,16 @@
 {
     "id": "it",
     "suggested_interests": [
-        {"word": "セキュリティ", "weight": 0.6}
+        {"word": "セキュリティ", "weight": 0.7},
+        {"word": "ガジェット", "weight": 0.5}
     ],
     "sources": [
         {"id": "itmedia", "name": "ITmedia", "type": "rss", "url": "https://rss.itmedia.co.jp/rss/2.0/itmedia_all.xml"},
         {"id": "gigazine", "name": "GIGAZINE", "type": "rss", "url": "https://gigazine.net/news/rss_2.0/"},
-        {"id": "ascii-tech", "name": "ASCII.jp（テック）", "type": "rss", "url": "https://ascii.jp/tech/rss.xml"},
-        {"id": "ascii-all", "name": "ASCII.jp（総合）", "type": "rss", "url": "https://ascii.jp/rss.xml"},
         {"id": "impress-watch", "name": "Impress Watch", "type": "rss", "url": "https://www.watch.impress.co.jp/data/rss/1.0/ipw/feed.rdf"},
-        {"id": "publickey", "name": "Publickey", "type": "rss", "url": "https://www.publickey1.jp/atom.xml"},
+        {"id": "ascii-tech", "name": "ASCII.jp（テック）", "type": "rss", "url": "https://ascii.jp/tech/rss.xml"},
+        {"id": "cnet-japan", "name": "CNET Japan", "type": "rss", "url": "https://feeds.japan.cnet.com/rss/cnet/all.rdf"},
+        {"id": "yahoo-it", "tier": "media", "name": "Yahoo!ニュース IT", "type": "rss", "url": "https://news.yahoo.co.jp/rss/topics/it.xml"},
         {"id": "gnews-technology", "tier": "media", "name": "Googleニュース テクノロジー", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?hl=ja&gl=JP&ceid=JP:ja"}
     ]
 }
