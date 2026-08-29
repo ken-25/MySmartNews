@@ -1,0 +1,12 @@
+{
+    "id": "fashion",
+    "suggested_interests": [
+        {"word": "コスメ", "weight": 0.7},
+        {"word": "ファッション", "weight": 0.6}
+    ],
+    "sources": [
+        {"id": "fashionsnap", "name": "FASHIONSNAP", "type": "rss", "url": "https://www.fashionsnap.com/rss.xml"},
+        {"id": "q-fashion", "name": "ファッション", "type": "query", "query": "ファッション OR コレクション 発表 OR アパレル"},
+        {"id": "q-beauty", "name": "美容", "type": "query", "query": "コスメ OR スキンケア OR ヘアケア"}
+    ]
+}

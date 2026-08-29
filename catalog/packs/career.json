@@ -1,0 +1,13 @@
+{
+    "id": "career",
+    "suggested_interests": [
+        {"word": "転職", "weight": 0.8},
+        {"word": "働き方", "weight": 0.7},
+        {"word": "副業", "weight": 0.6}
+    ],
+    "sources": [
+        {"id": "q-workstyle", "name": "働き方", "type": "query", "query": "働き方改革 OR リモートワーク OR 人手不足 OR 職場 人間関係"},
+        {"id": "q-jobchange", "name": "転職・採用", "type": "query", "query": "転職 OR 中途採用 OR 賃上げ OR 初任給"},
+        {"id": "q-skill", "name": "スキル・副業", "type": "query", "query": "リスキリング OR 副業 OR キャリア形成"}
+    ]
+}

@@ -1,0 +1,13 @@
+{
+    "id": "local",
+    "suggested_interests": [
+        {"word": "防災", "weight": 0.8},
+        {"word": "ハザードマップ", "weight": 0.7}
+    ],
+    "sources": [
+        {"id": "yahoo-local", "tier": "media", "name": "Yahoo!ニュース 地域", "type": "rss", "url": "https://news.yahoo.co.jp/rss/topics/local.xml"},
+        {"id": "nhk-society", "tier": "wire", "name": "NHKニュース 社会", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat1.xml"},
+        {"id": "q-disaster", "name": "地震・気象", "type": "query", "query": "地震 OR 台風 OR 大雨 警戒"},
+        {"id": "q-bosai", "name": "防災", "type": "query", "query": "防災 OR 避難所 OR ハザードマップ"}
+    ]
+}

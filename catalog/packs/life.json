@@ -2,8 +2,9 @@
     "id": "life",
     "suggested_interests": [],
     "sources": [
-        {"id": "gnews-health", "tier": "media", "name": "Googleニュース 健康", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/HEALTH?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "hatena-life", "tier": "social", "name": "はてブ 暮らし", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/life.rss"},
-        {"id": "q-money", "name": "お金", "type": "query", "query": "家計 OR 節約 OR NISA OR 住宅ローン"}
+        {"id": "nhk-life", "tier": "wire", "name": "NHKニュース 暮らし", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat2.xml"},
+        {"id": "hatena-life-tips", "tier": "social", "name": "はてブ 暮らし", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/life.rss"},
+        {"id": "q-lifehack", "name": "暮らしの知恵", "type": "query", "query": "暮らしの知恵 OR 収納 OR 掃除 OR 時短"},
+        {"id": "q-housing", "name": "住まい", "type": "query", "query": "住まい OR 賃貸 OR リフォーム OR 家電 選び方"}
     ]
 }

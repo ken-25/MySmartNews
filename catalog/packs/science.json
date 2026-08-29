@@ -1,9 +1,14 @@
 {
     "id": "science",
-    "suggested_interests": [],
+    "suggested_interests": [
+        {"word": "宇宙", "weight": 0.8},
+        {"word": "研究チーム", "weight": 0.7}
+    ],
     "sources": [
+        {"id": "yahoo-science", "tier": "media", "name": "Yahoo!ニュース 科学", "type": "rss", "url": "https://news.yahoo.co.jp/rss/topics/science.xml"},
+        {"id": "nhk-science", "tier": "wire", "name": "NHKニュース 科学・医療", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat3.xml"},
         {"id": "gnews-science", "tier": "media", "name": "Googleニュース 科学", "type": "rss", "url": "https://news.google.com/rss/headlines/section/topic/SCIENCE?hl=ja&gl=JP&ceid=JP:ja"},
-        {"id": "hatena-knowledge-sci", "tier": "social", "name": "はてブ 学び", "type": "rss", "url": "https://b.hatena.ne.jp/hotentry/knowledge.rss"},
-        {"id": "q-space", "name": "宇宙", "type": "query", "query": "宇宙 OR ロケット打ち上げ OR 探査機"}
+        {"id": "q-space", "name": "宇宙", "type": "query", "query": "宇宙 OR ロケット打ち上げ OR 探査機"},
+        {"id": "q-research", "name": "研究", "type": "query", "query": "研究成果 OR 論文 発表 大学"}
     ]
 }

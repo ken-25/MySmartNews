@@ -81,6 +81,14 @@
     var container = document.getElementById('swipe-container');
     var sheet = document.getElementById('settings');
     var sheetBody = document.getElementById('settings-body');
+    var sheetTitle = document.getElementById('settings-title');
+    var sheetLead = document.getElementById('settings-lead');
+    var closeButton = document.getElementById('close-settings');
+    /* index.html に直接書いてある「このアプリは何か」の説明。初めて来た人
+     * （＝端末に設定が無い訪問者。検索エンジンのクローラもここに含まれる）
+     * にだけ見せ、2回目以降は起動時に隠す。 */
+    var intro = document.getElementById('intro');
+    var onboarding = false;   // いま初回セットアップ中か
 
     var catalog = null;      // index.json
     var packData = {};       // pack_id -> 記事配列
@@ -935,9 +943,12 @@
 
     function renderPackSection(parent) {
         parent.appendChild(sectionTitle('カテゴリ'));
-        parent.appendChild(hint(
-            '選んだ順にタブが並びます。TOPは選んだカテゴリ全部を混ぜて作られ、'
-            + '下まで読み進めると選んでいないカテゴリからも継ぎ足されます。'));
+        parent.appendChild(hint(onboarding
+            ? 'よく読まれるものを先に選んであります。'
+              + '「＋」で足して「✕」で外し、右上の「はじめる」を押してください。'
+              + 'あとから右上の「設定」で何度でも変えられます。'
+            : '選んだ順にタブが並びます。TOPは選んだカテゴリ全部を混ぜて作られ、'
+              + '下まで読み進めると選んでいないカテゴリからも継ぎ足されます。'));
         var box = group();
 
         settings.packs.forEach(function (id, index) {
@@ -1231,9 +1242,42 @@
         }
     }
 
+    /* 初めて開いた人への説明。ここで伝えたいのは操作方法ではなく
+     * 「カテゴリを選ぶと何が起きるのか」で、それが分からないまま
+     * カテゴリだけ並べても選びようがない。2回目以降は出さない。 */
+    function renderWelcomeSection(parent) {
+        var box = el('div', 'welcome');
+        box.appendChild(el('p', 'welcome-lead',
+            '読みたいカテゴリを選ぶだけのニュースリーダーです。'
+            + '選んだカテゴリの記事を1本のタイムラインに混ぜて表示します。'));
+        var list = el('ul', 'welcome-points');
+        [['選んだカテゴリがタブになります',
+          'いちばん左のTOPは、その全部を混ぜた1本のリストです。'],
+         ['大きなニュースは埋もれません',
+          '同じ話題を何媒体が報じたかで重要度を測っています。'],
+         ['読むほど自分好みになります',
+          '開いた記事から話題を覚えて、次から近い記事を上に出します。'],
+         ['設定はこの端末の中だけ',
+          'アカウントも広告もありません。サーバーには何も送りません。']
+        ].forEach(function (item) {
+            var node = el('li');
+            node.appendChild(el('b', null, item[0]));
+            node.appendChild(el('span', null, item[1]));
+            list.appendChild(node);
+        });
+        box.appendChild(list);
+        parent.appendChild(box);
+    }
+
     function renderSettings() {
         sheetBody.textContent = '';
         if (!catalog) { return; }
+        if (onboarding) {
+            // 初回はカテゴリ選びだけに絞る。全項目を並べても読まれない。
+            renderWelcomeSection(sheetBody);
+            renderPackSection(sheetBody);
+            return;
+        }
         renderPackSection(sheetBody);
         renderInterestSection(sheetBody);
         renderLearnedSection(sheetBody);
@@ -1255,6 +1299,11 @@
             applyDefaults();
         }
         settings.onboarded = true;
+        onboarding = false;
+        sheetTitle.textContent = '設定';
+        sheetLead.hidden = false;
+        closeButton.textContent = '完了';
+        if (intro) { intro.hidden = true; }
         saveSettings();
         sheet.hidden = true;
         refresh();
@@ -1267,12 +1316,14 @@
     }
 
     function startOnboarding() {
+        onboarding = true;
         applyDefaults();
         saveSettings();
-        document.getElementById('settings-title').textContent = 'ようこそ';
-        document.getElementById('settings-lead').textContent =
-            '読みたいカテゴリを選んでください。あとから何度でも変えられます。'
-            + '設定はこの端末の中だけに保存されます。';
+        sheetTitle.textContent = 'ようこそ';
+        // 説明は welcome セクションに出すので、ふだんの一行案内は引っ込める
+        sheetLead.hidden = true;
+        closeButton.textContent = 'はじめる';
+        if (intro) { intro.hidden = false; }
         openSettings();
         refresh();
     }
@@ -1311,6 +1362,8 @@
 
     loadSettings();
     importFromHash();
+    // 一度でも使ったことがある端末では、説明を出さずにそのまま記事へ
+    if (intro && settings.onboarded) { intro.hidden = true; }
 
     getJSON('index.json').then(function (data) {
         catalog = data;

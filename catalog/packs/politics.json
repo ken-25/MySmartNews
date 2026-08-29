@@ -1,0 +1,9 @@
+{
+    "id": "politics",
+    "suggested_interests": [],
+    "sources": [
+        {"id": "nhk-politics", "tier": "wire", "name": "NHKニュース 政治", "type": "rss", "url": "https://www.nhk.or.jp/rss/news/cat4.xml"},
+        {"id": "q-diet", "name": "国会・政策", "type": "query", "query": "国会 OR 法案 成立 OR 閣議決定 OR 行政改革"},
+        {"id": "q-election", "name": "選挙・政党", "type": "query", "query": "選挙 OR 世論調査 OR 政党 支持率"}
+    ]
+}

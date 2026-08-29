@@ -1,14 +1,15 @@
 {
     "id": "ai",
     "suggested_interests": [
-        {"word": "生成AI", "weight": 1.3},
+        {"word": "生成AI", "weight": 1.2},
         {"word": "LLM", "weight": 1.0},
-        {"word": "AI", "weight": 0.6}
+        {"word": "AI活用", "weight": 0.8}
     ],
     "sources": [
+        {"id": "itmedia-ai", "name": "ITmedia AI+", "type": "rss", "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml"},
         {"id": "q-genai", "name": "生成AI", "type": "query", "query": "生成AI OR 大規模言語モデル"},
         {"id": "q-llm-products", "name": "AIプロダクト", "type": "query", "query": "ChatGPT OR Claude OR Gemini OR Copilot"},
         {"id": "q-ai-business", "name": "AI活用", "type": "query", "query": "AI活用 OR AI導入 業務"},
-        {"id": "itmedia-ai", "name": "ITmedia AI+", "type": "rss", "url": "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml"}
+        {"id": "q-ai-rule", "name": "AIと社会", "type": "query", "query": "AI規制 OR AI著作権 OR AI倫理"}
     ]
 }

@@ -1,0 +1,12 @@
+{
+    "id": "design",
+    "suggested_interests": [
+        {"word": "デザイン", "weight": 0.7},
+        {"word": "展覧会", "weight": 0.6}
+    ],
+    "sources": [
+        {"id": "q-design", "name": "デザイン", "type": "query", "query": "デザイン 刷新 OR ロゴ OR ブランディング"},
+        {"id": "q-art", "name": "アート", "type": "query", "query": "美術館 OR 展覧会 OR 現代アート"},
+        {"id": "q-photo", "name": "写真・カメラ", "type": "query", "query": "カメラ 新製品 OR 交換レンズ OR 写真展"}
+    ]
+}
