@@ -96,7 +96,7 @@ jobs:
 
       - name: Configure GitHub Pages
         if: steps.target.outputs.name == 'github-pages'
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload GitHub Pages artifact
         if: steps.target.outputs.name == 'github-pages'
