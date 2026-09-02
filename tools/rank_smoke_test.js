@@ -184,8 +184,34 @@ const merged = msn.merge([
 ]);
 check(merged.length === 2, '同じ話題が1件にまとめられる (' + merged.length + '件)');
 const leader = merged.filter((a) => a.cluster === 'c1')[0];
-check(leader.also === 1, 'まとめた件数が記録されている (他' + leader.also + '件)');
+check(leader.dupes.length === 1,
+    'まとめた記事を捨てずに持っている (他' + leader.dupes.length + '件)');
+check(leader.dupes[0].link, 'まとめた記事のリンクが残っている');
 check(leader.hatena === 40, 'クラスタ内で一番ブックマークの多い数を引き継ぐ');
+
+/* --- 同じ話題を開いて他社の記事を読む --- */
+const topic = article({
+    key: 'https://lead.example/1', title: '代表記事', site: '通信社', cluster: 'c9'
+});
+topic.dupes = [
+    article({ key: 'https://x.example/1', title: 'X社の記事', site: 'X' }),
+    article({ key: 'https://y.example/1', title: 'Y社の記事', site: 'Y' }),
+    article({ key: 'https://x.example/2', title: 'X社の続報', site: 'X' }),
+    article({ key: 'https://lead.example/2', title: '代表と同じ媒体', site: '通信社' }),
+    article({ key: 'https://z.example/1', title: 'Z社の記事', site: 'Z' })
+];
+let folded = msn.foldedArticles(topic);
+check(folded.length === 3,
+    '同じ媒体の2件目と代表自身の媒体は畳んだ一覧に出さない (' + folded.length + '件)');
+check(msn.foldedLabel(folded) === 'X・Y ほか1媒体 も報じています',
+    '件数ではなく媒体名で「他にどこが報じたか」を示す (' + msn.foldedLabel(folded) + ')');
+check(msn.foldedLabel(folded.slice(0, 2)) === 'X・Y も報じています',
+    '2媒体までは名前だけを並べる');
+msn.setSettings({ packs: [], interests: [], muted: ['X'], custom: [], affinity: {} });
+folded = msn.foldedArticles(topic);
+check(folded.every((a) => a.site !== 'X'),
+    'ミュートしたサイトは畳んだ一覧にも出てこない');
+msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {} });
 
 /* --- TOP: 重要度の判定にはてブ数を使わない --- */
 msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {} });

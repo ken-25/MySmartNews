@@ -66,6 +66,12 @@ CLUSTER_SHORT_BIGRAMS = 10
 CLUSTER_SIMILARITY_SHORT = 0.62
 CLUSTER_SIMILARITY = 0.44
 CLUSTER_MAX_POSTINGS = 400  # ありふれたバイグラムは候補の絞り込みに使わない
+# 固有名詞（社名・製品名・地名）が一致していれば、言い換えに強い証拠になる。
+# そのときだけ下限を下げる。逆に互いが相手にない固有名詞を持っていたら、
+# 文字の並びがどれだけ似ていても別のニュースとして扱う。
+CLUSTER_SIMILARITY_NAMED = 0.34
+CLUSTER_RARE_RATIO = 0.02  # 全記事のこの割合以下にしか出ない語を固有名詞とみなす
+CLUSTER_RARE_MIN = 4       # 記事数が少ないビルドでも固有名詞を見つけられるようにする
 
 # ソースの性質。「重要度」と「話題度」を混ぜないために付ける客観的なラベルで、
 # どれをどれだけ重んじるかを決めるのはブラウザ側。
@@ -84,6 +90,11 @@ TRACKING_PARAM_RE = re.compile(r'^(utm_|fbclid$|gclid$|mc_cid$|mc_eid$|ref$|ref_
 TRAILING_DATE_RE = re.compile(r'\s*(\d{4})年(\d{1,2})月(\d{1,2})日\s*$')
 # 記号・空白・約物をすべて落とし、英数字と日本語の文字だけ残す。
 CLUSTER_KEEP_RE = re.compile(r'[^0-9a-z\u3040-\u30ff\u3400-\u9fff]+')
+# 内容語（＝固有名詞の候補）の切り出し。形態素解析器は入れず、文字種が切り替わる
+# ところを語の切れ目とみなす。「大林組が新型ロボットを発表」→ 大林組 / 新型 /
+# ロボット / 発表。助詞と語尾はひらがななので自然に落ちる。
+CLUSTER_TOKEN_RE = re.compile(
+    r'[0-9]+|[a-z]{2,}|[\u30a1-\u30ff\u30fc]{2,}|[\u3400-\u9fff]{2,}')
 
 
 def now_jst():
@@ -148,13 +159,60 @@ def cluster_id(title):
     return hashlib.sha1(normalized.encode('utf-8')).hexdigest()[:12]
 
 
-def title_bigrams(title):
-    """タイトルを文字バイグラムの集合にする。話題の近さを測るための素材。"""
+def title_normalized(title):
+    """記号と空白を落としたタイトル。話題の近さはすべてこの形の上で測る。"""
     folded = unicodedata.normalize('NFKC', title).lower()
-    normalized = CLUSTER_KEEP_RE.sub('', folded)
+    return CLUSTER_KEEP_RE.sub('', folded)
+
+
+def text_bigrams(normalized):
+    """正規化したタイトルを文字バイグラムの集合にする。近さを測る素材。"""
     if len(normalized) < CLUSTER_MIN_LEN:
         return set()
     return {normalized[i:i + 2] for i in range(len(normalized) - 1)}
+
+
+def title_tokens(title):
+    """タイトルから内容語だけを取り出す。固有名詞の一致を見るのに使う。"""
+    folded = unicodedata.normalize('NFKC', title).lower()
+    return set(CLUSTER_TOKEN_RE.findall(folded))
+
+
+def rare_tokens(profiles):
+    """めったに出てこない語を集める。実質的に固有名詞のふるい。
+
+    辞書も形態素解析器も持たない。同じビルドに入った全記事を母集団にして、
+    出現率の低い語を「その話題に固有の語」とみなす。「発表」「開始」のような
+    どの見出しにも出る語は自動的に外れ、社名・製品名・地名だけが残る。
+    """
+    counts = {}
+    for profile in profiles:
+        for token in profile[2]:
+            counts[token] = counts.get(token, 0) + 1
+    limit = max(CLUSTER_RARE_MIN, int(len(profiles) * CLUSTER_RARE_RATIO))
+    return {token for token, count in counts.items() if count <= limit}
+
+
+def unmatched_name(tokens, rare, other_text, other_grams):
+    """相手の見出しに見当たらない固有名詞があるかを返す。
+
+    語の一致ではなく、相手の見出しの中に見つかるかを見る。「首相」は
+    「石破首相」に含まれるので食い違いとは数えない。肩書きや社名を足し引き
+    するのは、同じ話題を各社が書くときに普通に起きることだから。
+
+    漢字は語がくっつくので（「連携の新機能」と「連携機能」）、文字列として
+    含まれるかだけでは足りない。文字のつながりが半分より多く相手にもあれば、
+    同じものを指していると見て食い違いには数えない。半分ちょうどでは足りない
+    ことにしてある（「JR東日本」と「JR西日本」は「日本」だけを共有する）。
+    """
+    for token in tokens:
+        if token not in rare or token in other_text:
+            continue
+        pairs = [token[i:i + 2] for i in range(len(token) - 1)]
+        if pairs and sum(1 for pair in pairs if pair in other_grams) * 2 > len(pairs):
+            continue
+        return True
+    return False
 
 
 def unify_clusters(articles):
@@ -167,14 +225,25 @@ def unify_clusters(articles):
     「誰もが知るべきニュースか」に直接効く。
 
     形態素解析器は入れない（依存を増やしたくない）。文字バイグラムの Jaccard
-    係数で近似する。まとめすぎると別のニュースが一覧から消えてしまうので、
-    共有バイグラム数と係数の両方に下限を置いた保守的な設定にしてある。
+    係数で近似したうえで、固有名詞の一致を重く見る。文字の並びだけを見ると
+    「トヨタが新型EVを発表」と「ホンダが新型EVを発表」が7割方一致してしまい、
+    別のニュースが一覧から消える。まとめ不足より、まとめすぎのほうが害が
+    大きいので、判定は次の3段構えにしてある。
+
+    1. 互いに相手の見出しにない固有名詞があれば、似ていても別の話題とする
+    2. 同じ固有名詞を共有していれば、言い換えの証拠として下限を下げる
+    3. どちらでもなければ、従来どおり文字バイグラムの一致率だけで判断する
     """
-    postings = {}   # バイグラム -> [代表記事の添字]
-    leaders = []    # [バイグラム集合, クラスタキー, まとめた媒体名の集合]
-    merged = 0
+    profiles = []
     for article in articles:
-        grams = title_bigrams(article['title'])
+        text = title_normalized(article['title'])
+        profiles.append((text, text_bigrams(text), title_tokens(article['title'])))
+    rare = rare_tokens(profiles)
+
+    postings = {}   # バイグラム -> [代表記事の添字]
+    leaders = []    # [バイグラム集合, クラスタキー, 媒体名の集合, 内容語, 正規化タイトル]
+    merged = 0
+    for article, (text, grams, tokens) in zip(articles, profiles):
         if not grams:
             continue
 
@@ -197,16 +266,25 @@ def unify_clusters(articles):
             # そのサイトの記事がまるごと1件に潰れて一覧が痩せてしまう。
             if article['site_name'] in leaders[pos][2]:
                 continue
-            other = leaders[pos][0]
-            similarity = count / float(len(grams) + len(other) - count)
-            floor = (CLUSTER_SIMILARITY_SHORT
-                     if min(len(grams), len(other)) <= CLUSTER_SHORT_BIGRAMS
-                     else CLUSTER_SIMILARITY)
+            other_grams, _, _, other_tokens, other_text = leaders[pos]
+            # 双方が「相手にない固有名詞」を抱えているなら、主語の違う別の話題。
+            if (unmatched_name(tokens, rare, other_text, other_grams)
+                    and unmatched_name(other_tokens, rare, text, grams)):
+                continue
+            similarity = count / float(len(grams) + len(other_grams) - count)
+            if rare & tokens & other_tokens:
+                # 同じ社名・製品名が出ている。言い換えられていても同じ話題とみなす
+                floor = CLUSTER_SIMILARITY_NAMED
+            elif min(len(grams), len(other_grams)) <= CLUSTER_SHORT_BIGRAMS:
+                floor = CLUSTER_SIMILARITY_SHORT
+            else:
+                floor = CLUSTER_SIMILARITY
             if similarity >= floor and similarity > best_score:
                 best, best_score = pos, similarity
 
         if best is None:
-            leaders.append([grams, article['cluster'], {article['site_name']}])
+            leaders.append([grams, article['cluster'], {article['site_name']},
+                            tokens, text])
             index = len(leaders) - 1
             for gram in grams:
                 postings.setdefault(gram, []).append(index)
