@@ -86,6 +86,13 @@ DEFAULT_TIER = {'rss': 'media', 'html': 'media', 'query': 'search'}
 # 実記事に付いたブックマーク数とは結びつかない。件数を問い合わせない。
 REDIRECT_HOSTS = ('news.google.com',)
 
+# 韓国語の記事を落とすための文字種の判定。Googleニュースは日本語（hl=ja）で
+# 引いても、韓国メディアのハングルの見出しを混ぜてくることがある。日本語で
+# 読めない記事が一覧に並び、媒体名も「表示しないサイト」に溜まっていくので、
+# 取り込む前にここで落とす。
+HANGUL_RE = re.compile(r'[\uac00-\ud7a3\u1100-\u11ff\u3130-\u318f\uffa0-\uffdc]')
+KANA_RE = re.compile(r'[\u3040-\u30ff]')
+
 TRACKING_PARAM_RE = re.compile(r'^(utm_|fbclid$|gclid$|mc_cid$|mc_eid$|ref$|ref_src$|cmpid$)')
 TRAILING_DATE_RE = re.compile(r'\s*(\d{4})年(\d{1,2})月(\d{1,2})日\s*$')
 # 記号・空白・約物をすべて落とし、英数字と日本語の文字だけ残す。
@@ -133,6 +140,28 @@ def normalize_url(url):
     path = parts.path.rstrip('/') or '/'
     return urlunparse((parts.scheme, bare_host(parts.netloc), path, '',
                        urlencode(query), ''))
+
+
+def is_korean(title, site_name):
+    """ハングルの見出し・媒体名を韓国語の記事とみなす。
+
+    かなが1文字も無くハングルを含む見出しが対象。日本語の見出しがハングルを
+    引用しているだけのもの（K-POPのグループ名など）はかなが残るので落ちない。
+    """
+    if HANGUL_RE.search(site_name or ''):
+        return True
+    text = title or ''
+    return bool(HANGUL_RE.search(text)) and not KANA_RE.search(text)
+
+
+def drop_korean(articles, label):
+    """韓国語の記事を取り除く。落とした件数はログに出す。"""
+    kept = [a for a in articles
+            if not is_korean(a['title'], a['site_name'])]
+    dropped = len(articles) - len(kept)
+    if dropped:
+        print(f"  {label}: 韓国語の記事を{dropped}件除外")
+    return kept
 
 
 def is_redirect_link(url):
@@ -490,10 +519,14 @@ def fetch_query(source):
 
 def fetch_source(source):
     if source['type'] == 'query':
-        return fetch_query(source)
-    if source['type'] == 'html':
-        return fetch_html(source)
-    return fetch_rss(source)
+        articles = fetch_query(source)
+    elif source['type'] == 'html':
+        articles = fetch_html(source)
+    else:
+        articles = fetch_rss(source)
+    if articles is None:
+        return None
+    return drop_korean(articles, source['name'])
 
 
 def fetch_key(source):
@@ -604,7 +637,8 @@ def recover_from_state(state, source, now):
             site_name=meta.get('site_name')))
     recovered.sort(key=lambda a: a['published_at'] or datetime.min.replace(tzinfo=JST),
                    reverse=True)
-    return recovered[:PER_SOURCE_LIMIT]
+    # 前のビルドで書いた state には、除外を入れる前の記事が残っていることがある
+    return drop_korean(recovered, source['name'])[:PER_SOURCE_LIMIT]
 
 
 def collect(packs, state, now):
