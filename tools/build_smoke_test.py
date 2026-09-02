@@ -130,13 +130,20 @@ class Network:
         # 同じ事件を各社が別の見出しで報じる。まとまって reach=3 になるはず。
         if 'wire.example' in url:
             return FakeResponse(rss([
-                ('政府が建設DXの支援制度を発表', 'https://wire.example/1', 20)]))
+                ('政府が建設DXの支援制度を発表', 'https://wire.example/1', 20),
+                # 社名だけが違う2本。文字の並びは7割方一致するが別のニュース
+                ('大林組が新型建設ロボットを発表', 'https://wire.example/2', 4),
+                # 各社が言い換えても、同じ固有名詞が出ていればまとまるはず
+                ('日銀が追加利上げを決定', 'https://wire.example/3', 6)]))
         if 'paper.example' in url:
             return FakeResponse(rss([
-                ('政府が建設DXの支援制度を発表へ', 'https://paper.example/1', 25)]))
+                ('政府が建設DXの支援制度を発表へ', 'https://paper.example/1', 25),
+                ('鹿島が新型建設ロボットを発表', 'https://paper.example/2', 5)]))
         if 'local.example' in url:
             return FakeResponse(rss([
-                ('政府、建設DXの支援制度を発表', 'https://local.example/1', 30)]))
+                ('政府、建設DXの支援制度を発表', 'https://local.example/1', 30),
+                ('日銀、追加利上げを決定 政策金利0.75%に',
+                 'https://local.example/2', 7)]))
         if 'quiet.example' in url:
             return FakeResponse(rss([
                 ('BIM連携の新機能', 'https://quiet.example/bim', 200)]))
@@ -286,6 +293,17 @@ def main():
     check(all(a['reach'] == 1 for a in packs['tech']
               if a['title'].startswith('多産サイトの記事')),
           '誰も追随していない記事の reach は 1 のまま')
+
+    obayashi = find(packs, '大林組が新型建設ロボットを発表', 'tech')
+    kajima = find(packs, '鹿島が新型建設ロボットを発表', 'tech')
+    check(obayashi is not None and kajima is not None
+          and obayashi['cluster'] != kajima['cluster'],
+          '社名だけが違う見出しは、文字の並びが似ていても別の話題のまま')
+    boj = find(packs, '日銀が追加利上げを決定', 'tech')
+    boj_rewrite = find(packs, '日銀、追加利上げを決定', 'tech')
+    check(boj is not None and boj_rewrite is not None
+          and boj['cluster'] == boj_rewrite['cluster'],
+          '同じ固有名詞が出ている言い換えの見出しは1つの話題にまとまる')
 
     keys = [a['key'] for a in packs['tech']]
     check(len(keys) == len(set(keys)), 'パック内に重複記事がない')

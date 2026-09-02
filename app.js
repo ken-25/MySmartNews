@@ -70,6 +70,7 @@
     var HOT_THRESHOLD = 30;        // バッジを出す累計ブックマーク数
     var RISING_THRESHOLD = 10;     // 急上昇と見なす増分
     var NEW_WINDOW_HOURS = 3;      // NEW バッジを出す初回発見からの時間
+    var TOPIC_LINKS = 6;           // 「同じ話題」を開いたときに並べる他社記事の上限
     var PAGE_SIZE = 20;            // 一度に描き足す件数（無限スクロール）
     var TOP_LIMIT = 200;
     var PACK_LIMIT = 200;
@@ -778,7 +779,8 @@
     }
 
     /* 同じ記事（URL）と同じ話題（クラスタ）をまとめる。
-     * クラスタは代表1件だけ残し、まとめた件数を持たせる。 */
+     * クラスタは代表1件だけ残し、畳んだ記事は dupes に取っておく。
+     * 一覧は1話題1行のまま、「他社はどう報じたか」を開いて読めるようにする。 */
     function merge(lists) {
         var byKey = {};
         lists.forEach(function (list) {
@@ -800,12 +802,12 @@
             if (!article.cluster) { out.push(article); return; }
             var leader = byCluster[article.cluster];
             if (!leader) {
-                article.also = 0;
+                article.dupes = [];
                 byCluster[article.cluster] = article;
                 out.push(article);
                 return;
             }
-            leader.also = (leader.also || 0) + 1;
+            leader.dupes.push(article);
             // 画像やはてブ数を持っているほうを代表にする
             if (!leader.image && article.image) { leader.image = article.image; }
             if ((article.hatena || 0) > (leader.hatena || 0)) {
@@ -966,17 +968,20 @@
         return img;
     }
 
+    /* 記事を開いたら「よく読むサイト」と「よく読む話題」を覚える。
+     * 端末の中だけの記録で、どこにも送らない。 */
+    function trackOpen(article) {
+        settings.affinity[article.site] = (settings.affinity[article.site] || 0) + 1;
+        learnFrom(article);
+        saveSettings();
+    }
+
     function buildCard(article, now, lane) {
         var card = el('a', 'article' + (article.image ? ' medium' : ''));
         card.href = safeLink(article.link);
         card.target = '_blank';
         card.rel = 'noopener';
-        card.addEventListener('click', function () {
-            // 「よく読むサイト」と「よく読む話題」を覚える。端末の中だけの記録。
-            settings.affinity[article.site] = (settings.affinity[article.site] || 0) + 1;
-            learnFrom(article);
-            saveSettings();
-        });
+        card.addEventListener('click', function () { trackOpen(article); });
 
         var body = el('div', 'body');
         if (article.image) {
@@ -992,6 +997,78 @@
         body.appendChild(buildMeta(article, now, lane));
         card.appendChild(body);
         return card;
+    }
+
+    /* 代表1件に畳んだ他社の記事。ミュートしたサイトは出さないし、
+     * 同じサイトが2回並んでも意味がないので媒体ごとに1件にする。 */
+    function foldedArticles(article) {
+        var seenSites = {};
+        seenSites[article.site] = true;
+        return (article.dupes || []).filter(function (dupe) {
+            if (seenSites[dupe.site]) { return false; }
+            if (settings.muted.indexOf(dupe.site) !== -1) { return false; }
+            seenSites[dupe.site] = true;
+            return true;
+        }).slice(0, TOPIC_LINKS);
+    }
+
+    /* 「NHK・日経新聞 も報じています」。件数ではなく媒体名を出す。
+     * 数字より、どこが報じたかのほうが開くかどうかの判断に使える。 */
+    function foldedLabel(folded) {
+        var names = folded.map(function (dupe) { return dupe.site; });
+        if (names.length <= 2) { return names.join('・') + ' も報じています'; }
+        return names.slice(0, 2).join('・') + ' ほか' + (names.length - 2)
+            + '媒体 も報じています';
+    }
+
+    /* 同じ話題を各社がどう報じたか。代表の下にたたんでおき、押すと開く。
+     * カードごとリンクなので、開閉ボタンはカードの外に置く必要がある。 */
+    function buildFolded(article, now) {
+        var folded = foldedArticles(article);
+        if (!folded.length) { return null; }
+
+        var wrap = el('div', 'folded');
+        var list = el('div', 'folded-list');
+        list.hidden = true;
+        var toggle = el('button', 'folded-toggle');
+        toggle.type = 'button';
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.appendChild(el('span', 'folded-label', foldedLabel(folded)));
+        toggle.appendChild(el('span', 'chevron', '▾'));
+        toggle.addEventListener('click', function () {
+            var open = list.hidden;
+            list.hidden = !open;
+            wrap.classList.toggle('open', open);
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        });
+
+        folded.forEach(function (dupe) {
+            var row = el('a', 'folded-item');
+            row.href = safeLink(dupe.link);
+            row.target = '_blank';
+            row.rel = 'noopener';
+            row.addEventListener('click', function () { trackOpen(dupe); });
+            row.appendChild(el('span', 'site-badge', dupe.site));
+            row.appendChild(el('span', 'folded-title', dupe.title));
+            var ago = timeAgo(dupe, now);
+            if (ago) { row.appendChild(el('span', 'time', ago)); }
+            list.appendChild(row);
+        });
+
+        wrap.appendChild(toggle);
+        wrap.appendChild(list);
+        return wrap;
+    }
+
+    /* 一覧に並ぶ1行分。同じ話題の記事があれば、カードの下に畳んで添える。 */
+    function buildTopic(article, now, lane) {
+        var topic = el('div', 'topic');
+        var card = buildCard(article, now, lane);
+        var folded = buildFolded(article, now);
+        if (folded) { card.classList.add('has-folded'); }
+        topic.appendChild(card);
+        if (folded) { topic.appendChild(folded); }
+        return topic;
     }
 
     /* 一覧を PAGE_SIZE 件ずつ描き足す。末尾の番人が画面に入ったら次を描く。
@@ -1011,7 +1088,7 @@
         function draw() {
             articles.slice(cursor, cursor + PAGE_SIZE).forEach(function (article) {
                 shown[article.key] = true;
-                pane.insertBefore(buildCard(article, now, lanes[article.key]), sentinel);
+                pane.insertBefore(buildTopic(article, now, lanes[article.key]), sentinel);
                 remember(article);
                 cursor++;
             });
@@ -1667,6 +1744,8 @@
         score: score,
         rank: rank,
         merge: merge,
+        foldedArticles: foldedArticles,
+        foldedLabel: foldedLabel,
         pickDiverse: pickDiverse,
         buildTop: buildTop,
         learnFrom: learnFrom,
