@@ -105,6 +105,15 @@
      * サ変の「し」も入れない（「提携し」の「携」は名詞の一部）。 */
     var OKURIGANA = 'うくぐつぬぶむるいえけげねべめれちびみりわっ';
 
+    /* 韓国語（ハングル）の記事を出さないための判定。Googleニュースは日本語
+     * （hl=ja）で引いても、韓国メディアのハングルの見出しを混ぜてくることが
+     * ある。日本語で読めない記事が一覧に並び、媒体名が「表示しないサイト」の
+     * リストにも溜まっていくので、取り込むところで落とす。配信データは
+     * build.py 側でも落としているが、自分で追加したソースと、すでに端末へ
+     * 保存済みの設定はここでしか掃除できない。 */
+    var HANGUL_RE = /[\uac00-\ud7a3\u1100-\u11ff\u3130-\u318f\uffa0-\uffdc]/;
+    var KANA_RE = /[\u3040-\u30ff]/;
+
     var tabBar = document.getElementById('tab-bar');
     var container = document.getElementById('swipe-container');
     var sheet = document.getElementById('settings');
@@ -132,6 +141,25 @@
         };
     }
 
+    /* かなが1文字も無くハングルを含む見出しが韓国語の記事。日本語の見出しが
+     * ハングルを引用しているだけのもの（K-POPのグループ名など）はかなが
+     * 残るので落ちない。媒体名がハングルなら見出しを見るまでもない。 */
+    function isKoreanSite(site) {
+        return HANGUL_RE.test(site || '');
+    }
+
+    function isKorean(title, site) {
+        if (isKoreanSite(site)) { return true; }
+        var text = title || '';
+        return HANGUL_RE.test(text) && !KANA_RE.test(text);
+    }
+
+    function dropKorean(articles) {
+        return (articles || []).filter(function (article) {
+            return !isKorean(article.title, article.site);
+        });
+    }
+
     function sanitize(raw) {
         var base = defaultSettings();
         if (!raw || typeof raw !== 'object') { return base; }
@@ -149,7 +177,10 @@
             });
         }
         if (Array.isArray(raw.muted)) {
-            base.muted = raw.muted.filter(function (s) { return typeof s === 'string'; });
+            // 韓国語のサイトは一覧ごと出さなくなったので、保存済みの指定も捨てる
+            base.muted = raw.muted.filter(function (s) {
+                return typeof s === 'string' && !isKoreanSite(s);
+            });
         }
         if (Array.isArray(raw.custom)) {
             raw.custom.forEach(function (item) {
@@ -167,7 +198,9 @@
         if (raw.affinity && typeof raw.affinity === 'object') {
             Object.keys(raw.affinity).forEach(function (site) {
                 var n = Number(raw.affinity[site]);
-                if (n > 0) { base.affinity[site] = Math.min(n, 999); }
+                if (n > 0 && !isKoreanSite(site)) {
+                    base.affinity[site] = Math.min(n, 999);
+                }
             });
         }
         if (raw.topics && typeof raw.topics === 'object') {
@@ -254,7 +287,7 @@
     function loadPack(id) {
         if (packData[id]) { return Promise.resolve(packData[id]); }
         return getJSON('p/' + encodeURIComponent(id) + '.json').then(function (data) {
-            packData[id] = data.articles || [];
+            packData[id] = dropKorean(data.articles);
             return packData[id];
         }).catch(function () {
             packData[id] = [];
@@ -320,6 +353,7 @@
                     title = title.slice(0, -(site.length + 3)).trim();
                 }
             }
+            if (isKorean(title, site)) { continue; }
             out.push({
                 title: title, link: link, key: link, site: site,
                 source: source.id, cluster: null,

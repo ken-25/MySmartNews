@@ -171,22 +171,30 @@ body {
 .empty { text-align: center; color: var(--text-muted); font-size: 0.875rem; padding: 40px 0; line-height: 1.7; }
 .status { text-align: center; color: var(--text-muted); font-size: 0.875rem; padding: 60px 20px; }
 
-/* 設定シート */
+/* 設定シート。トップのタブバーと同じで、見出しと「完了」は動かさない。
+   スクロールするのは .sheet-scroll の中だけ。 */
 .sheet {
     position: fixed; inset: 0; z-index: 200; background: var(--bg);
-    overflow-y: auto; -webkit-overflow-scrolling: touch;
-    padding: calc(12px + env(safe-area-inset-top)) 15px calc(40px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column;
 }
 .sheet[hidden] { display: none; }
 .sheet-head {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 4px;
+    flex-shrink: 0; background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    padding: calc(10px + env(safe-area-inset-top)) 15px 10px;
+}
+.sheet-scroll {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 12px 15px calc(40px + env(safe-area-inset-bottom));
 }
 .sheet-head h1 { font-size: 1.1875rem; font-weight: 600; margin: 0; }
 .sheet h2 {
     font-size: 0.75rem; color: var(--text-muted); margin: 26px 4px 8px;
     letter-spacing: 0.03em; font-weight: 600; text-transform: uppercase;
 }
+.sheet-scroll > *:first-child { margin-top: 0; }
+#settings-body > h2:first-child { margin-top: 4px; }
 .sheet .hint { font-size: 0.75rem; color: var(--text-muted); margin: 0 4px 8px; line-height: 1.6; }
 .group { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
 .row {

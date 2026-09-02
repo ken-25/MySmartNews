@@ -51,6 +51,8 @@ PACKS = {
              "url": "https://paper.example/rss"},
             {"id": "local", "name": "地方紙", "type": "rss",
              "url": "https://local.example/rss"},
+            {"id": "krmix", "name": "韓国語混在フィード", "type": "rss",
+             "url": "https://krmix.example/rss"},
         ],
     },
     "build": {
@@ -71,9 +73,12 @@ PACKS = {
 
 def rss(items, source_title=None):
     body = ''
-    for title, link, minutes in items:
-        source = (f'<source url="https://example.com">{source_title}</source>'
-                  if source_title else '')
+    for item in items:
+        title, link, minutes = item[:3]
+        # 4つ目を書いた項目だけ、その項目の媒体名を上書きする
+        name = item[3] if len(item) > 3 else source_title
+        source = (f'<source url="https://example.com">{name}</source>'
+                  if name else '')
         body += ('<item><title>{}</title><link>{}</link><pubDate>{}</pubDate>{}</item>'
                  .format(title, link,
                          email.utils.format_datetime(NOW - timedelta(minutes=minutes)),
@@ -144,6 +149,11 @@ class Network:
                 ('政府、建設DXの支援制度を発表', 'https://local.example/1', 30),
                 ('日銀、追加利上げを決定 政策金利0.75%に',
                  'https://local.example/2', 7)]))
+        if 'krmix.example' in url:
+            return FakeResponse(rss([
+                ('윤석열 대통령 국회 시정연설', 'https://krmix.example/1', 10),
+                ('ソウルで日韓首脳会談', 'https://krmix.example/2', 11, '조선일보'),
+                ('K-POPの방탄소년단が新曲を発表', 'https://krmix.example/3', 12)]))
         if 'quiet.example' in url:
             return FakeResponse(rss([
                 ('BIM連携の新機能', 'https://quiet.example/bim', 200)]))
@@ -334,6 +344,13 @@ def main():
               for chunk in network.hatena_requests),
           f'はてブAPIのリクエストがURI長の上限内に収まっている '
           f'({len(network.hatena_requests)}リクエスト)')
+
+    check(find(packs, '윤석열') is None,
+          'ハングルの見出しの記事を取り込んでいない')
+    check(find(packs, 'ソウルで日韓首脳会談') is None,
+          'ハングルの媒体名の記事を取り込んでいない')
+    check(find(packs, '방탄소년단') is not None,
+          '日本語の見出しがハングルを引用しているだけの記事は残る')
 
     check(find(packs, 'このサイトについて') is None,
           'exclude パターンのリンクが除外されている')

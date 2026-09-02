@@ -72,13 +72,17 @@
             <div class="status" id="status">読み込み中…</div>
         </div>
     </div>
+    <!-- 見出しと完了ボタンは動かさず、その下だけをスクロールさせる。
+         項目が増えても「完了」を探して上まで戻らずに済ませるため。 -->
     <div class="sheet" id="settings" hidden>
         <div class="sheet-head">
             <h1 id="settings-title">設定</h1>
             <button class="close" id="close-settings">完了</button>
         </div>
-        <p class="hint" id="settings-lead">設定はこの端末の中だけに保存されます。サーバーには送られません。</p>
-        <div id="settings-body"></div>
+        <div class="sheet-scroll">
+            <p class="hint" id="settings-lead">設定はこの端末の中だけに保存されます。サーバーには送られません。</p>
+            <div id="settings-body"></div>
+        </div>
     </div>
     <script src="app.js"></script>
 </body>
