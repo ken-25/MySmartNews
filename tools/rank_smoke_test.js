@@ -228,14 +228,62 @@ ranked = msn.rank(pool, 5);
 check(ranked[0].key !== 'https://prolific.example/0',
     '一度見た記事が最新でも先頭から外れる');
 
+/* --- 見出しの切り出し --- */
+/* 形態素解析器を積まないぶん、漢字の連なりの端で語でない語ができる。
+ * 前後1文字を見て落とすところを、実際に出てきた事故で押さえる。 */
+function words(title) { return msn.candidateWords(title); }
+check(words('無痛分娩で第2児出産を報告').indexOf('児出産') === -1
+    && words('無痛分娩で第2児出産を報告').indexOf('出産') !== -1,
+    '数字の後ろの助数詞を語の頭に残さない (' + words('無痛分娩で第2児出産を報告').join(', ') + ')');
+check(words('年収が1.5倍違う理由').indexOf('倍違') === -1,
+    '送り仮名の付く動詞の語幹を語として拾わない ('
+    + words('年収が1.5倍違う理由').join(', ') + ')');
+check(words('日経平均が値上げ局面に').indexOf('値上') === -1,
+    '送り仮名で切れた「値上」を拾わない');
+check(words('生成AIの新モデルを発表').indexOf('生成ai') !== -1,
+    '隙間なく続く2語の連結も候補にする (' + words('生成AIの新モデルを発表').join(', ') + ')');
+check(words('大林組がBIMで検討').indexOf('bim') !== -1,
+    '英字の略語を小文字にして拾う');
+check(words('この記事はofとtoを含む').indexOf('of') === -1,
+    '小文字2文字の英単語は拾わない');
+check(words('経済産業省総合資源調査会が開催').indexOf('経済産業省総合資源調査会') === -1,
+    '長すぎる漢字の連なりは語に切れないので捨てる');
+
 /* --- クリックした記事から話題を学習する --- */
+/* 見出しの母集団。「提供開始」はどの見出しにも出るが、「revit」は数本だけ。 */
+const corpus = [];
+for (let i = 0; i < 200; i++) {
+    corpus.push(article({
+        key: 'https://corpus.example/' + i, link: 'https://corpus.example/' + i,
+        site: 'ITmedia ビジネスオンライン',
+        title: i % 3 === 0 ? ('新サービスの提供開始を発表' + i)
+            : (i % 41 === 0 ? ('Revitで施工図を描く' + i) : ('雑多な見出し' + i + 'について'))
+    }));
+}
+msn.setCorpus({ corpus: corpus });
+
 msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {} });
-msn.learnFrom('Revitのアドインで施工図を自動生成する');
+msn.learnFrom({ key: 'https://x.example/1', site: '寡作サイト',
+                title: 'Revitのアドインで施工図を自動生成する' });
+check(Object.keys(msn.getSettings().topics).length === 0,
+    '1つの記事にしか出ていない語はまだ覚えない');
+check(Object.keys(msn.getSettings().candidates).indexOf('revit') !== -1,
+    '拾った語は様子見の候補に入る ('
+    + Object.keys(msn.getSettings().candidates).join(', ') + ')');
+
+msn.learnFrom({ key: 'https://x.example/2', site: '寡作サイト',
+                title: 'Revitの新しい使い方' });
 const topics = Object.keys(msn.getSettings().topics);
-check(topics.length > 0, '見出しから話題の語を拾っている (' + topics.join(', ') + ')');
-check(topics.indexOf('revit') !== -1, '英字の語を小文字にして覚えている');
+check(topics.indexOf('revit') !== -1,
+    '別の記事で2回目が出た語を覚える (' + topics.join(', ') + ')');
+
+msn.learnFrom({ key: 'https://x.example/2', site: '寡作サイト',
+                title: 'Revitの新しい使い方' });
+check(Object.keys(msn.getSettings().topics).length === topics.length,
+    '同じ記事を開き直しても2回目の証拠にはしない');
+
 pool = prolific(20).concat([
-    article({ title: 'Revitの新しい使い方', link: 'https://quiet.example/revit',
+    article({ title: 'Revitの新しい使い方（続報）', link: 'https://quiet.example/revit',
               key: 'https://quiet.example/revit', site: '寡作サイト',
               published_at: new Date(Date.now() - 6 * HOUR).toISOString() })
 ]);
@@ -243,6 +291,32 @@ top = msn.buildTop(pool, 10);
 const recommended = top.filter((a) => a.key === 'https://quiet.example/revit')[0];
 check(recommended && recommended.lane === 'you',
     'キーワードを1つも設定していなくても、学習した話題がおすすめに載る');
+
+/* --- ありふれた語と媒体名は覚えない --- */
+msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {} });
+for (let i = 0; i < 2; i++) {
+    msn.learnFrom({ key: 'https://y.example/' + i, site: 'ITmedia ビジネスオンライン',
+                    title: 'テスラの新型を試す（ITmedia ビジネスオンライン）と提供開始' + i });
+}
+const learned = Object.keys(msn.getSettings().topics);
+check(learned.indexOf('提供開始') === -1,
+    '見出し全体によく出る語は、2回出ても覚えない (' + learned.join(', ') + ')');
+check(learned.indexOf('itmedia') === -1 && learned.indexOf('ビジネスオンライン') === -1,
+    '見出しに紛れ込んだ媒体名を話題として覚えない');
+check(learned.indexOf('テスラ') !== -1, 'ありふれていない語は覚える');
+
+/* --- 似た語を二重に覚えない --- */
+msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {},
+                  topics: { 'revit': 1.0 } });
+msn.learnFrom({ key: 'https://z.example/1', site: '寡作サイト',
+                title: 'Revitのアドインが更新' });
+const dup = Object.keys(msn.getSettings().topics).filter((w) => w.indexOf('revit') !== -1);
+check(dup.length === 1,
+    '同じものを指す語をまとめて1語で持つ (' + dup.join(', ') + ')');
+check(msn.getSettings().topics.revit > 1.0,
+    'まとめた語の重みが育っている');
+
+msn.setCorpus({});
 
 /* --- ソースの性質でTOPの重みが変わる --- */
 msn.setSettings({ packs: [], interests: [], muted: [], custom: [], affinity: {} });

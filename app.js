@@ -49,6 +49,20 @@
     var LEARN_DECAY = 0.93;         // 古い興味が薄れる速さ
     var LEARN_MAX = 3.0;            // 1語あたりの重みの上限
     var LEARN_FLOOR = 0.35;         // これを下回った語は忘れる
+    var LEARN_GAIN = 0.6;           // 1回の一致で足す重み（情報量で割り引く）
+    var LEARN_PER_ARTICLE = 3;      // 1つの見出しから拾う語の上限
+    /* 1つの記事にしか出てこなかった語は覚えない。別々の記事で2回そろって
+     * はじめて「覚えた話題」に上げる。文脈語（提供開始）も切り出しの事故
+     * （倍違・児出産）も、2回目が来ないのでここで落ちる。 */
+    var CAND_TTL_DAYS = 21;         // 2回目を待つ期間
+    var CAND_LIMIT = 200;           // 様子見で持っておく候補の上限
+    /* 見出し全体のこの割合を超えて出てくる語は、誰の見出しにも出る語なので
+     * 覚えない（発表・提供開始・生成など）。手書きの除外リストと違い、
+     * いま流れているニュースから機械的に決まる。 */
+    var COMMON_DF_RATIO = 0.02;
+    var CORPUS_MIN_DOCS = 150;      // これだけ見出しが溜まってから統計を使う
+    var UNATTESTED_PENALTY = 0.55;  // 他の見出しに裏付けのない語の割り引き
+    var KANJI_MAX = 6;              // これより長い漢字の連なりは語に切れない
     /* ソースの性質ごとの信頼度。はてブのランキング経由（social）を低く置くのが
      * 「癖の強い個人ブログがTOPを占める」に対する直接の効き手になる。
      * ランキングそのものは「話題」タブに残るので、見たい人は見られる。 */
@@ -69,13 +83,26 @@
         { label: '中', value: 1.2 },
         { label: '強', value: 2.0 }
     ];
-    /* 学習語から外す、どの記事にも出てくる語。 */
+    /* 学習語から外す語。見出しが十分に溜まるまでは統計が効かないので、
+     * 立ち上がりのぶんだけ手で置いておく（溜まれば COMMON_DF_RATIO が拾う）。 */
     var STOP_WORDS = ['ニュース', '記事', '速報', '発表', '日本', '一覧', '写真',
                       '動画', '公開', '情報', '開始', '東京', '最新', 'まとめ',
-                      '可能性', '理由', '方法', '本当', '完全', '徹底'];
-    /* カタカナ語・英単語・漢字熟語だけを拾う簡易トークナイザ。
-     * 形態素解析器を積まずに「クリックした記事の話題」を近似する。 */
-    var TOKEN_RE = /[\u30a1-\u30f6\u30fc]{3,}|[A-Za-z][A-Za-z0-9.+#-]{2,}|[\u4e00-\u9fff\u3005]{2,5}/g;
+                      '可能性', '理由', '方法', '本当', '完全', '徹底',
+                      '生成', '提供', '提携', '開発', '対応', '実施', '導入',
+                      '仕事', '成果', '今回', '今年', '今後', '来年', '自分'];
+    /* カタカナ語・英単語・漢字の連なりを拾う簡易トークナイザ。
+     * 形態素解析器は積まないので、ここでは「区切りうる塊」を出すだけにして、
+     * 語として成立しているかの判定は後段（境界の補正と統計）に任せる。 */
+    var TOKEN_RE = /[\u30a1-\u30f6\u30fc]{3,}|[A-Za-z][A-Za-z0-9.+#-]*|[\u4e00-\u9fff\u3005]{2,}/g;
+    var CJK_RE = /[\u3040-\u30ff\u4e00-\u9fff\u3005]/;
+    var KANJI_RE = /^[\u4e00-\u9fff\u3005]/;
+    /* 数字のすぐ後ろに立つ漢字は助数詞。「第2児出産」の「児」、「8頭身」の「頭」を
+     * 語の頭に残すと、語でない語ができる。 */
+    var COUNTERS = '児人社位回件年月日割倍円台個度歳代期号目種名点票面版部話巻章冊枚匹頭機隻発泊週時分秒型棟軒戦勝敗連着階組';
+    /* 送り仮名が続くなら、直前の漢字は動詞・形容詞の語幹の末尾。「倍違う」の「違」。
+     * 助詞（は・が・を・に・へ・と・で・も・の・か・や）と重なる仮名は入れない。
+     * サ変の「し」も入れない（「提携し」の「携」は名詞の一部）。 */
+    var OKURIGANA = 'うくぐつぬぶむるいえけげねべめれちびみりわっ';
 
     var tabBar = document.getElementById('tab-bar');
     var container = document.getElementById('swipe-container');
@@ -99,7 +126,8 @@
     function defaultSettings() {
         return {
             v: 2, onboarded: false, packs: [], interests: [],
-            muted: [], custom: [], affinity: {}, topics: {}, seen: {}
+            muted: [], custom: [], affinity: {}, topics: {}, candidates: {},
+            seen: {}
         };
     }
 
@@ -145,6 +173,13 @@
             Object.keys(raw.topics).forEach(function (word) {
                 var n = Number(raw.topics[word]);
                 if (word && n > 0) { base.topics[word] = Math.min(n, LEARN_MAX); }
+            });
+        }
+        /* 様子見の候補（語 -> 最後に見かけた時刻）。2回目が来たら topics に上がる。 */
+        if (raw.candidates && typeof raw.candidates === 'object') {
+            Object.keys(raw.candidates).forEach(function (word) {
+                var at = Number(raw.candidates[word]);
+                if (word && at > 0) { base.candidates[word] = at; }
             });
         }
         if (raw.seen && typeof raw.seen === 'object') {
@@ -336,51 +371,317 @@
         saveSoon();
     }
 
-    function tokenize(title) {
-        var text = title.normalize ? title.normalize('NFKC') : title;
-        return (text.match(TOKEN_RE) || []).filter(function (word) {
-            return STOP_WORDS.indexOf(word) === -1;
-        });
+    /* ---------------- 話題語の抽出 ---------------- */
+
+    /* 全角と半角の違いを潰す。「ＡＩ」と「AI」を別の語にしない。 */
+    function normalize(text) {
+        return text && text.normalize ? text.normalize('NFKC') : (text || '');
     }
 
-    /* 開いた記事のタイトルから話題の語を拾って重みを育てる。
-     * 興味キーワードを1つも設定していない人にもレコメンドが効くようにするため。
-     * 古い語は開くたびに少しずつ薄れるので、興味が変われば入れ替わる。 */
-    function learnFrom(title) {
+    /* 比較に使う形。大文字と小文字の違いもここで潰す。 */
+    function fold(text) {
+        return normalize(text).toLowerCase();
+    }
+
+    var STOP_SET = Object.create(null);
+    STOP_WORDS.forEach(function (word) { STOP_SET[fold(word)] = true; });
+
+    /* 見出しから媒体名を抜く。「◯◯（ITmedia ビジネスオンライン）」のような
+     * 見出しをそのまま食わせると、媒体名が話題として覚えられてしまう。
+     * 大文字小文字はここでは畳まない（AI と ai の区別を後段で使う）。 */
+    function withoutSite(title, site) {
+        var text = normalize(title);
+        var name = normalize(site).trim();
+        if (name.length < 2) { return text; }
+        var lower = text.toLowerCase();
+        var needle = name.toLowerCase();
+        var at = lower.indexOf(needle);
+        while (at !== -1) {
+            text = text.slice(0, at) + ' ' + text.slice(at + needle.length);
+            lower = text.toLowerCase();
+            at = lower.indexOf(needle);
+        }
+        return text;
+    }
+
+    /* 漢字の連なりの両端を補正する。regex は「漢字が続いている範囲」しか
+     * 見ていないので、前後の1文字を手掛かりに語でない端を落とす。 */
+    function trimKanji(word, before, after) {
+        if (before >= '0' && before <= '9' && COUNTERS.indexOf(word.charAt(0)) !== -1) {
+            word = word.slice(1);
+        }
+        if (word && after && OKURIGANA.indexOf(after) !== -1) {
+            word = word.slice(0, -1);
+        }
+        return word;
+    }
+
+    /* 見出し（NFKC済み・大文字小文字はそのまま）を語の候補にほぐす。
+     * 隙間なく並んだ2語は連結したものも候補に入れる（「生成」+「AI」→「生成ai」）。
+     * 単体では文脈語でも、連結すれば話題を指す語になることがあるため。 */
+    function candidateWords(text) {
+        var re = new RegExp(TOKEN_RE.source, 'g');
+        var spans = [];
+        var m;
+        while ((m = re.exec(text)) !== null) {
+            var raw = m[0];
+            var start = m.index;
+            var end = start + raw.length;
+            var word = raw;
+            if (/^[A-Za-z]/.test(raw)) {
+                word = raw.replace(/[^A-Za-z0-9]+$/, '');
+                // 2文字の英字は AI や EU のような略語だけ（of, to を拾わない）
+                if (word.length < 2) { continue; }
+                if (word.length === 2 && word !== word.toUpperCase()) { continue; }
+                word = word.toLowerCase();
+            } else if (KANJI_RE.test(raw)) {
+                if (raw.length > KANJI_MAX) { continue; }
+                word = trimKanji(raw, text.charAt(start - 1), text.charAt(end));
+                if (word.length < 2) { continue; }
+            }
+            spans.push({ word: word, start: start, end: end });
+        }
+        var out = [];
+        spans.forEach(function (span, i) {
+            out.push(span.word);
+            var next = spans[i + 1];
+            if (next && next.start === span.end) { out.push(span.word + next.word); }
+        });
+        return out;
+    }
+
+    /* ---------------- いま流れている見出しの統計 ---------------- */
+
+    /* 手元に読み込んである見出し全部を母集団にして、語ごとの出現記事数を数える。
+     * 「どの見出しにも出る語かどうか」を、手書きのリストではなく実データで決める
+     * ための土台。パックの増減で作り直す。 */
+    var corpusCache = null;
+
+    function corpusSignature() {
+        return Object.keys(packData).sort().map(function (id) {
+            return id + ':' + ((packData[id] || []).length);
+        }).join('|');
+    }
+
+    function corpusStats() {
+        var sig = corpusSignature();
+        if (corpusCache && corpusCache.sig === sig) { return corpusCache; }
+        var df = Object.create(null);
+        var sites = Object.create(null);
+        var counted = Object.create(null);
+        var docs = 0;
+        Object.keys(packData).forEach(function (id) {
+            (packData[id] || []).forEach(function (article) {
+                if (!article || counted[article.key]) { return; }
+                counted[article.key] = true;
+                docs++;
+                if (article.site) { sites[fold(article.site)] = true; }
+                var once = Object.create(null);
+                candidateWords(withoutSite(article.title, article.site))
+                    .forEach(function (word) { once[word] = true; });
+                Object.keys(once).forEach(function (word) {
+                    df[word] = (df[word] || 0) + 1;
+                });
+            });
+        });
+        corpusCache = { sig: sig, docs: docs, df: df, sites: sites };
+        return corpusCache;
+    }
+
+    /* 見出し全体から見た珍しさ（0〜1）。1に近いほど絞り込みに効く語。 */
+    function informativeness(word, stats) {
+        if (stats.docs < 2) { return 0.5; }
+        var df = stats.df[word] || 0;
+        var value = Math.log(stats.docs / (1 + df)) / Math.log(stats.docs + 1);
+        return Math.max(Math.min(value, 1), 0);
+    }
+
+    /* 他の見出しにも出ている＝語として実在する、という裏付けがあるか。
+     * クリックした記事自身は母集団に入っているので、1件では裏付けにならない。 */
+    function attested(word, stats) {
+        return (stats.df[word] || 0) >= 2;
+    }
+
+    function commonWord(word, stats) {
+        if (stats.docs < CORPUS_MIN_DOCS) { return false; }
+        return (stats.df[word] || 0) / stats.docs > COMMON_DF_RATIO;
+    }
+
+    function learnable(word, stats) {
+        if (word.length < 2) { return false; }
+        if (STOP_SET[word]) { return false; }
+        if (stats.sites[word]) { return false; }
+        if (/^[0-9]+$/.test(word)) { return false; }
+        return !commonWord(word, stats);
+    }
+
+    /* 2つの語が同じものを指しているか。漢字混じりは包含、英字とカタカナは
+     * 前方一致だけで見る（"ios" が "biosphere" に当たるのを避ける）。 */
+    function sameThing(a, b) {
+        if (a === b) { return true; }
+        var shorter = a.length <= b.length ? a : b;
+        var longer = a.length <= b.length ? b : a;
+        if (longer.indexOf(shorter) === -1) { return false; }
+        if (CJK_RE.test(shorter)) { return shorter.length >= 2; }
+        return shorter.length >= 3 && longer.indexOf(shorter) === 0;
+    }
+
+    /* 同じものを指す2語のうち、話題として使うほうを選ぶ。
+     * どこにも裏付けのない語（連結してできただけの一時的な言い回し。
+     * 「bim」に対する「bim連携」）は採らない。どちらも実在するなら、
+     * 絞り込めるほう＝珍しいほうを残す（「生成」より「生成ai」）。 */
+    function moreSpecific(a, b, stats) {
+        var okA = attested(a, stats);
+        var okB = attested(b, stats);
+        if (okA !== okB) { return okA ? a : b; }
+        var da = stats.df[a] || 0;
+        var db = stats.df[b] || 0;
+        if (da !== db) { return da < db ? a : b; }
+        return a.length >= b.length ? a : b;
+    }
+
+    function findSame(map, word) {
+        var found = null;
+        Object.keys(map).forEach(function (key) {
+            if (!found && sameThing(key, word)) { found = key; }
+        });
+        return found;
+    }
+
+    /* 1つの見出しから覚える語を選ぶ。位置ではなく珍しさで選ぶので、
+     * 見出しの頭に置かれがちな媒体名や定型句に引っ張られない。 */
+    function pickWords(title, site, stats) {
+        var picked = [];
+        var seen = Object.create(null);
+        candidateWords(withoutSite(title, site)).forEach(function (word) {
+            if (seen[word] || !learnable(word, stats)) { return; }
+            seen[word] = true;
+            var info = informativeness(word, stats);
+            picked.push({
+                word: word, info: info,
+                // 裏付けのない語を珍しさだけで上位に置くと、切り出しの事故が
+                // いちばん珍しい語になって枠を食う
+                rank: info * (attested(word, stats) ? 1 : UNATTESTED_PENALTY)
+            });
+        });
+        // 同じ見出しの中の重複（「生成」と「生成ai」）は絞り込めるほうに寄せる
+        var merged = [];
+        picked.forEach(function (item) {
+            for (var i = 0; i < merged.length; i++) {
+                if (!sameThing(merged[i].word, item.word)) { continue; }
+                var keep = moreSpecific(merged[i].word, item.word, stats);
+                if (keep === item.word) { merged[i] = item; }
+                return;
+            }
+            merged.push(item);
+        });
+        merged.sort(function (a, b) { return b.rank - a.rank; });
+        return merged.slice(0, LEARN_PER_ARTICLE);
+    }
+
+    function bump(word, info) {
+        settings.topics[word] = Math.min(
+            (settings.topics[word] || LEARN_FLOOR) + LEARN_GAIN * info, LEARN_MAX);
+    }
+
+    /* 覚えるかどうかの判定。すでに覚えている話題と同じものなら重みを足し、
+     * 初めて見る語はいったん様子見に入れて、別の記事でもう一度出たら上げる。 */
+    function absorb(word, info, stats, now) {
+        var known = findSame(settings.topics, word);
+        if (known) {
+            var keep = moreSpecific(known, word, stats);
+            if (keep !== known) {
+                settings.topics[keep] = settings.topics[known];
+                delete settings.topics[known];
+            }
+            bump(keep, info);
+            delete settings.candidates[word];
+            return;
+        }
+        var waiting = findSame(settings.candidates, word);
+        if (waiting) {
+            var promoted = moreSpecific(waiting, word, stats);
+            delete settings.candidates[waiting];
+            bump(promoted, info);
+            return;
+        }
+        settings.candidates[word] = now;
+    }
+
+    function forgetOld() {
         Object.keys(settings.topics).forEach(function (word) {
             settings.topics[word] *= LEARN_DECAY;
             if (settings.topics[word] < LEARN_FLOOR) { delete settings.topics[word]; }
         });
-        tokenize(title).slice(0, 3).forEach(function (word) {
-            var key = word.toLowerCase();
-            settings.topics[key] = Math.min(
-                (settings.topics[key] || LEARN_FLOOR) + 0.6, LEARN_MAX);
+        var limit = Date.now() - CAND_TTL_DAYS * 86400000;
+        Object.keys(settings.candidates).forEach(function (word) {
+            if (settings.candidates[word] < limit) { delete settings.candidates[word]; }
         });
-        var words = Object.keys(settings.topics);
-        if (words.length > LEARN_LIMIT) {
-            words.sort(function (a, b) { return settings.topics[b] - settings.topics[a]; });
-            var kept = {};
-            words.slice(0, LEARN_LIMIT).forEach(function (word) {
-                kept[word] = settings.topics[word];
-            });
-            settings.topics = kept;
+    }
+
+    /* 値の大きい順に limit 個だけ残す。話題は重みの重い順、様子見は新しい順。 */
+    function trim(map, limit) {
+        var keys = Object.keys(map);
+        if (keys.length <= limit) { return map; }
+        keys.sort(function (a, b) { return map[b] - map[a]; });
+        var kept = {};
+        keys.slice(0, limit).forEach(function (key) { kept[key] = map[key]; });
+        return kept;
+    }
+
+    // 同じセッションで同じ記事を開き直しても、2回目の証拠としては数えない
+    var learnedKeys = Object.create(null);
+
+    /* 開いた記事の見出しから話題の語を拾って重みを育てる。
+     * 興味キーワードを1つも設定していない人にもレコメンドが効くようにするため。
+     * 古い語は開くたびに少しずつ薄れるので、興味が変われば入れ替わる。 */
+    function learnFrom(article) {
+        var title = typeof article === 'string' ? article : (article && article.title);
+        var site = typeof article === 'string' ? '' : (article && article.site) || '';
+        var key = typeof article === 'string' ? null : (article && article.key);
+        if (!title) { return; }
+        if (key) {
+            if (learnedKeys[key]) { return; }
+            learnedKeys[key] = true;
         }
+        var stats = corpusStats();
+        var now = Date.now();
+        forgetOld();
+        pickWords(title, site, stats).forEach(function (item) {
+            absorb(item.word, item.info, stats, now);
+        });
+        settings.topics = trim(settings.topics, LEARN_LIMIT);
+        settings.candidates = trim(settings.candidates, CAND_LIMIT);
+    }
+
+    /* 覚えた話題を1つ忘れる。様子見の候補も一緒に落とさないと、
+     * 消した語が次のクリックですぐ戻ってくる。 */
+    function forgetTopic(word) {
+        delete settings.topics[word];
+        Object.keys(settings.candidates).forEach(function (candidate) {
+            if (sameThing(candidate, word)) { delete settings.candidates[candidate]; }
+        });
     }
 
     /* ---------------- スコアリング ---------------- */
 
-    function matchInterests(title) {
-        var lowered = title.toLowerCase();
+    /* 一致を見るときの見出し。学習側と同じ畳み方をそろえないと、全角の
+     * 「ＡＩ」や大文字の「AI」で覚えた語が拾えない。記事ごとに1度だけ作る。 */
+    function foldedTitle(article) {
+        if (typeof article.folded !== 'string') { article.folded = fold(article.title); }
+        return article.folded;
+    }
+
+    function matchInterests(folded) {
         return settings.interests.filter(function (interest) {
-            return lowered.indexOf(interest.word.toLowerCase()) !== -1;
+            return folded.indexOf(fold(interest.word)) !== -1;
         });
     }
 
-    function matchTopics(title) {
-        var lowered = title.toLowerCase();
+    function matchTopics(folded) {
         var hits = [];
         Object.keys(settings.topics).forEach(function (word) {
-            if (lowered.indexOf(word) !== -1) {
+            if (folded.indexOf(word) !== -1) {
                 hits.push({ word: word, weight: settings.topics[word] * LEARN_WEIGHT });
             }
         });
@@ -421,8 +722,9 @@
             + VELOCITY_WEIGHT * Math.log10(1 + delta);
         var reach = Math.max(article.reach || 1, 1);
 
-        var explicit = matchInterests(article.title);
-        var learned = matchTopics(article.title);
+        var folded = foldedTitle(article);
+        var explicit = matchInterests(folded);
+        var learned = matchTopics(folded);
         article.matched = explicit.map(function (h) { return h.word; });
         article.learned = learned.map(function (h) { return h.word; });
         var interest = 1.0;
@@ -672,7 +974,7 @@
         card.addEventListener('click', function () {
             // 「よく読むサイト」と「よく読む話題」を覚える。端末の中だけの記録。
             settings.affinity[article.site] = (settings.affinity[article.site] || 0) + 1;
-            learnFrom(article.title);
+            learnFrom(article);
             saveSettings();
         });
 
@@ -884,7 +1186,11 @@
                 packData[id] = articles;
             }));
         });
-        return Promise.all(jobs).then(render);
+        return Promise.all(jobs).then(function () {
+            render();
+            // 見出しの統計は最初のクリックで要る。描画を止めないよう後回しに作る。
+            setTimeout(corpusStats, 0);
+        });
     }
 
     /* ---------------- 設定画面 ---------------- */
@@ -1049,12 +1355,17 @@
             return settings.topics[b] - settings.topics[a];
         });
         parent.appendChild(sectionTitle('自動で覚えた話題'));
+        var waiting = Object.keys(settings.candidates).length;
         parent.appendChild(hint(
             '開いた記事の見出しから拾った語です。TOPのおすすめに使われます。'
-            + '古いものから薄れていくので、放っておいても入れ替わります。'));
+            + '別々の記事で2回出てきた語だけを覚えるので、見出し1本かぎりの'
+            + '言い回しは残りません。古いものから薄れていくので、放っておいても'
+            + '入れ替わります。'));
         var box = group();
         if (!words.length) {
-            box.appendChild(row('まだありません', '記事をいくつか開くと溜まります'));
+            box.appendChild(row('まだありません',
+                waiting ? '様子見の語が' + waiting + '個。同じ話題をもう一度開くと覚えます'
+                        : '記事をいくつか開くと溜まります'));
             parent.appendChild(box);
             return;
         }
@@ -1066,16 +1377,20 @@
             remove.textContent = '✕';
             remove.setAttribute('aria-label', word + ' を忘れる');
             remove.addEventListener('click', function () {
-                delete settings.topics[word];
+                forgetTopic(word);
                 applyAndRerender();
             });
             chip.appendChild(remove);
             chips.appendChild(chip);
         });
         box.appendChild(chips);
+        if (waiting) {
+            box.appendChild(row('様子見', waiting + '個の語が2回目を待っています'));
+        }
         var forget = el('button', 'linkbtn danger', 'まとめて忘れる');
         forget.addEventListener('click', function () {
             settings.topics = {};
+            settings.candidates = {};
             applyAndRerender();
         });
         box.appendChild(forget);
@@ -1354,7 +1669,14 @@
         merge: merge,
         pickDiverse: pickDiverse,
         buildTop: buildTop,
-        learnFrom: learnFrom
+        learnFrom: learnFrom,
+        candidateWords: candidateWords,
+        pickWords: pickWords,
+        corpusStats: corpusStats,
+        setCorpus: function (lists) {
+            packData = lists || {};
+            corpusCache = null;
+        }
     };
 
     document.getElementById('open-settings').addEventListener('click', openSettings);
